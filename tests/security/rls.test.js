@@ -9,10 +9,10 @@ describe('Cross-tenant isolation', () => {
 
   test('org A properties not visible to org B queries', () => {
     // Insert properties for two different orgs
-    db.prepare("INSERT INTO properties (id, organization_id, title, rent, location, bedrooms, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+    db.prepare("INSERT OR IGNORE INTO properties (id, organization_id, title, rent, location, bedrooms, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
       'prop-a-1', 'org-a', 'Org A Property 1', 12000, 'mumbai', 2, 'available', new Date().toISOString()
     );
-    db.prepare("INSERT INTO properties (id, organization_id, title, rent, location, bedrooms, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+    db.prepare("INSERT OR IGNORE INTO properties (id, organization_id, title, rent, location, bedrooms, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
       'prop-b-1', 'org-b', 'Org B Property 1', 15000, 'delhi', 3, 'available', new Date().toISOString()
     );
 
@@ -32,10 +32,10 @@ describe('Cross-tenant isolation', () => {
   });
 
   test('visits table isolation by org_id', () => {
-    db.prepare("INSERT INTO visits (id, organization_id, property_id, status, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    db.prepare("INSERT OR IGNORE INTO visits (id, organization_id, property_id, status, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
       'visit-a-1', 'org-a', 'prop-a-1', 'pending', '+919876543210', new Date().toISOString()
     );
-    db.prepare("INSERT INTO visits (id, organization_id, property_id, status, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    db.prepare("INSERT OR IGNORE INTO visits (id, organization_id, property_id, status, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
       'visit-b-1', 'org-b', 'prop-b-1', 'pending', '+919876543211', new Date().toISOString()
     );
 
