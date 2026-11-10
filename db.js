@@ -47,6 +47,30 @@ function init() {
   );
   db.exec(migration6);
 
+  const migration7 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '007_properties.sql'),
+    'utf8'
+  );
+  db.exec(migration7);
+
+  const migration8 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '008_property_images.sql'),
+    'utf8'
+  );
+  db.exec(migration8);
+
+  const migration9 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '009_conversations.sql'),
+    'utf8'
+  );
+  db.exec(migration9);
+
+  const migration10 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '010_messages.sql'),
+    'utf8'
+  );
+  db.exec(migration10);
+
   return db;
 }
 
