@@ -55,7 +55,13 @@ describe('Property matching engine', () => {
   test('flexibility allows budget stretch', () => {
     const results = match({ budgetMax: 12000, location: 'mumbai', bedrooms: 2, flexibility: 1 }, props);
     const ids = results.map(r => r.property.id);
-    expect(ids).toContain('5'); // Luxury Mumbai at 25000 should appear with flexibility
+    expect(ids).toContain('5'); // Luxury 2BHK Mumbai at 22000 should appear with flexibility
+  });
+
+  test('flexibility is off by default - over-budget properties excluded', () => {
+    const results = match({ budgetMax: 12000, location: 'mumbai', bedrooms: 2 }, props);
+    const ids = results.map(r => r.property.id);
+    expect(ids).not.toContain('5'); // Luxury 2BHK at 22000 excluded without flexibility
   });
 
   test('ranks exact matches higher', () => {

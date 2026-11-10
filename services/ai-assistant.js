@@ -86,6 +86,7 @@ function getState(phone) {
 }
 
 const MANDATORY = ['budgetMax', 'location', 'bedrooms'];
+const OPTIONAL = ['flexibility'];
 
 function questionFor(field) {
   const q = {
@@ -178,12 +179,12 @@ function handleMessage(phone, text) {
     const parsedReqs = parsed.requirements || {};
     const manualReqs = manualParse(lowered);
     const merged = { ...parsedReqs };
-    for (const field of MANDATORY) {
+    for (const field of [...MANDATORY, ...OPTIONAL]) {
       if (!merged[field] && manualReqs[field]) {
         merged[field] = manualReqs[field];
       }
     }
-    for (const field of MANDATORY) {
+    for (const field of [...MANDATORY, ...OPTIONAL]) {
       if (merged[field]) {
         state.requirements[field] = merged[field];
       }
@@ -208,14 +209,14 @@ function handleMessage(phone, text) {
 
     // Merge: parsed first, then manual fill gaps
     const merged = { ...parsedReqs };
-    for (const field of MANDATORY) {
+    for (const field of [...MANDATORY, ...OPTIONAL]) {
       if (!merged[field] && manualReqs[field]) {
         merged[field] = manualReqs[field];
       }
     }
 
     // Update state with merged requirements
-    for (const field of MANDATORY) {
+    for (const field of [...MANDATORY, ...OPTIONAL]) {
       if (merged[field]) {
         state.requirements[field] = merged[field];
       }
