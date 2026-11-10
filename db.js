@@ -51,7 +51,11 @@ function init() {
     path.join(__dirname, 'migrations', '007_properties.sql'),
     'utf8'
   );
-  db.exec(migration7);
+  try {
+    db.exec(migration7);
+  } catch (e) {
+    if (!e.message.includes('duplicate column name')) throw e;
+  }
 
   const migration8 = fs.readFileSync(
     path.join(__dirname, 'migrations', '008_property_images.sql'),
@@ -70,6 +74,48 @@ function init() {
     'utf8'
   );
   db.exec(migration10);
+
+  const migration11 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '011_tenant_requirements.sql'),
+    'utf8'
+  );
+  db.exec(migration11);
+
+  const migration12 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '012_leads.sql'),
+    'utf8'
+  );
+  db.exec(migration12);
+
+  const migration13 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '013_visits.sql'),
+    'utf8'
+  );
+  db.exec(migration13);
+
+  const migration14 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '014_subscriptions.sql'),
+    'utf8'
+  );
+  db.exec(migration14);
+
+  const migration15 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '015_usage_logs.sql'),
+    'utf8'
+  );
+  db.exec(migration15);
+
+  const migration16 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '016_webhook_events.sql'),
+    'utf8'
+  );
+  db.exec(migration16);
+
+  const migration17 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '017_audit_logs.sql'),
+    'utf8'
+  );
+  db.exec(migration17);
 
   return db;
 }
