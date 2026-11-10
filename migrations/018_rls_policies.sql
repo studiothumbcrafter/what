@@ -34,3 +34,16 @@ SELECT * FROM webhook_events;
 
 CREATE VIEW IF NOT EXISTS audit_logs_rls AS
 SELECT * FROM audit_logs;
+
+-- Add organization_id to existing tables that don't have it
+-- These tables were created before multi-tenancy was introduced
+ALTER TABLE allowed_contacts ADD COLUMN organization_id TEXT;
+ALTER TABLE visits ADD COLUMN organization_id TEXT;
+ALTER TABLE customers ADD COLUMN organization_id TEXT;
+ALTER TABLE matches ADD COLUMN organization_id TEXT;
+
+-- Add indexes for organization_id lookups
+CREATE INDEX IF NOT EXISTS idx_allowed_contacts_org ON allowed_contacts(organization_id);
+CREATE INDEX IF NOT EXISTS idx_visits_org ON visits(organization_id);
+CREATE INDEX IF NOT EXISTS idx_customers_org ON customers(organization_id);
+CREATE INDEX IF NOT EXISTS idx_matches_org ON matches(organization_id);

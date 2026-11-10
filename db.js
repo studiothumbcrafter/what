@@ -121,7 +121,11 @@ function init() {
     path.join(__dirname, 'migrations', '018_rls_policies.sql'),
     'utf8'
   );
-  db.exec(migration18);
+  try {
+    db.exec(migration18);
+  } catch (e) {
+    if (!e.message.includes('duplicate column name')) throw e;
+  }
 
   return db;
 }
