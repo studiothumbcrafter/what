@@ -34,14 +34,34 @@ describe('AI rental assistant - conversation state machine', () => {
     reply = handleMessage('+919876543290', 'Mumbai');
     expect(reply).toContain('bedroom');
     reply = handleMessage('+919876543290', '2BHK');
-    expect(reply).not.toContain('budget');
-    expect(reply).not.toContain('location');
-    expect(reply).not.toContain('bedroom');
-    expect(reply).toContain('Searching for matching properties');
+    expect(reply).toContain('₹');
+    expect(reply).toContain('match');
+    expect(reply).toContain('Photos');
   });
 
   test('parser.js extracts all mandatory fields from one natural language message', () => {
     const reply = handleMessage('+919876543291', '2BHK under 15000 in Delhi');
-    expect(reply).toContain('Searching for matching properties');
+    expect(reply).toContain('₹');
+    expect(reply).toContain('delhi');
+  });
+
+  test('match result formatting shows properties with details', () => {
+    let reply = handleMessage('+919876543300', 'hello');
+    reply = handleMessage('+919876543300', '12000');
+    reply = handleMessage('+919876543300', 'Mumbai');
+    reply = handleMessage('+919876543300', '2BHK');
+    expect(reply).toContain('₹');
+    expect(reply).toContain('mumbai');
+    expect(reply).toContain('match');
+  });
+
+  test('match result formatting shows max 3 properties', () => {
+    let reply = handleMessage('+919876543301', 'hello');
+    reply = handleMessage('+919876543301', '10000');
+    reply = handleMessage('+919876543301', 'mumbai');
+    reply = handleMessage('+919876543301', '2');
+    // Count property price mentions - should be max 3
+    const rentMatches = reply.match(/₹\d+/g) || [];
+    expect(rentMatches.length).toBeLessThanOrEqual(3);
   });
 });

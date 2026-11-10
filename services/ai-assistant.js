@@ -2,8 +2,81 @@
 // Stage 1: In-memory, no database, no WhatsApp
 
 const { parse } = require('./parser');
+const { match } = require('./matcher');
 
 const conversations = new Map();
+
+// Sample properties (in-memory for Stage 1; replaced by DB in Stage 2)
+const SAMPLE_PROPERTIES = [
+  {
+    id: 'prop-1',
+    title: '2BHK Family Home',
+    rent: 12000,
+    location: 'mumbai',
+    bedrooms: 2,
+    bathrooms: 2,
+    furnishing: 'furnished',
+    parking: 1,
+    balcony: 1,
+    floor: 5,
+    facilities: 'parking, balcony, security',
+    availability_date: '2027-01-01',
+    info: 'Spacious 2BHK in prime location with balcony and parking.',
+    status: 'available',
+    photos: ['https://example.com/prop1-photo1.jpg', 'https://example.com/prop1-photo2.jpg'],
+  },
+  {
+    id: 'prop-2',
+    title: '3BHK Luxury Apartment',
+    rent: 18000,
+    location: 'mumbai',
+    bedrooms: 3,
+    bathrooms: 3,
+    furnishing: 'semi-furnished',
+    parking: 1,
+    balcony: 1,
+    floor: 8,
+    facilities: 'parking, security, gym',
+    availability_date: '2026-12-01',
+    info: 'Luxury 3BHK with gym and security.',
+    status: 'available',
+    photos: ['https://example.com/prop2-photo1.jpg'],
+  },
+  {
+    id: 'prop-3',
+    title: '2BHK Budget Home',
+    rent: 9000,
+    location: 'mumbai',
+    bedrooms: 2,
+    bathrooms: 1,
+    furnishing: 'unfurnished',
+    parking: 0,
+    balcony: 0,
+    floor: 2,
+    facilities: 'security',
+    availability_date: '2026-11-15',
+    info: 'Affordable 2BHK for bachelors and small families.',
+    status: 'available',
+    photos: ['https://example.com/prop3-photo1.jpg', 'https://example.com/prop3-photo2.jpg', 'https://example.com/prop3-photo3.jpg'],
+  },
+  {
+    id: 'prop-4',
+    title: '2BHK Delhi Home',
+    rent: 11000,
+    location: 'delhi',
+    bedrooms: 2,
+    bathrooms: 2,
+    furnishing: 'furnished',
+    parking: 1,
+    balcony: 1,
+    floor: 3,
+    facilities: 'parking, balcony, power backup',
+    availability_date: '2027-02-01',
+    info: 'Furnished 2BHK in Delhi with parking.',
+    status: 'available',
+    photos: ['https://example.com/prop4-photo1.jpg'],
+  },
+];
 
 function getState(phone) {
   if (!conversations.has(phone)) {
@@ -58,6 +131,32 @@ function manualParse(text) {
   return req;
 }
 
+function formatMatchResult(matchResult) {
+  const p = matchResult.property;
+  let text = `*${p.title}*\n`;
+  text += `₹${p.rent}/month • ${p.location}\n`;
+  text += `${p.bedrooms} BHK • ${p.bathrooms || '-'} bath`;
+  if (p.furnishing) text += ` • ${p.furnishing}`;
+  if (p.parking === 1) text += ' • Parking';
+  if (p.balcony === 1) text += ' • Balcony';
+  text += `\nWhy it matches: ${matchResult.matchReasons.join('; ')}.\n`;
+  text += `Photos: ${p.photos.length} available\n`;
+  return text;
+}
+
+function formatMatches(matches) {
+  if (matches.length === 0) {
+    return 'Sorry, I couldn\u2019t find any available properties matching your requirements. Would you like to relax one requirement (budget, location, or bedrooms)?';
+  }
+
+  let text = `Here are the best matching properties (showing ${Math.min(matches.length, 3)}):\n\n`;
+  matches.slice(0, 3).forEach((m, i) => {
+    text += `${i + 1}. ${formatMatchResult(m)}\n`;
+  });
+  text += '\nReply with a property number to book a visit, or ask me to show more.';
+  return text;
+}
+
 function handleMessage(phone, text) {
   const state = getState(phone);
   const trimmed = text.trim();
@@ -92,7 +191,8 @@ function handleMessage(phone, text) {
     const missing = findMissing(state);
     if (!missing) {
       state.state = 'matching';
-      return 'Thank you! I have your requirements. Searching for matching properties...';
+      const results = match(state.requirements, SAMPLE_PROPERTIES);
+      return formatMatches(results);
     }
     state.state = 'collecting';
     return questionFor(missing);
@@ -129,7 +229,22 @@ function handleMessage(phone, text) {
 
     // All mandatory fields collected
     state.state = 'matching';
-    return 'Thank you! I have your requirements. Searching for matching properties...';
+    const results = match(state.requirements, SAMPLE_PROPERTIES);
+    return formatMatches(results);
+  }
+
+  // Matching state - handle property selection or new search
+  if (state.state === 'matching') {
+    const numMatch = trimmed.match(/^(\d+)$/);
+    if (numMatch) {
+      const choice = parseInt(numMatch[1]);
+      // This would be handled in visit booking flow
+      return `You selected property ${choice}. Reply 'yes' to book a visit or 'no' to see more options.`;
+    }
+    // New search - reset and start over
+    state.state = 'greeting';
+    state.requirements = {};
+    return 'Hello! 👋 Welcome back to SmartRent AI. What is your maximum monthly budget (e.g., ₹12,000)?';
   }
 
   // Unknown input fallback
