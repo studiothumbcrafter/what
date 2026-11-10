@@ -117,6 +117,12 @@ function init() {
   );
   db.exec(migration17);
 
+  const migration18 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '018_rls_policies.sql'),
+    'utf8'
+  );
+  db.exec(migration18);
+
   return db;
 }
 
