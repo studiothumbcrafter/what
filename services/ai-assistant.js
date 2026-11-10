@@ -131,15 +131,15 @@ function manualParse(text) {
   return req;
 }
 
-function formatMatchResult(matchResult) {
-  const p = matchResult.property;
+function formatMatchResult(m) {
+  const p = m.property;
   let text = `*${p.title}*\n`;
   text += `₹${p.rent}/month • ${p.location}\n`;
   text += `${p.bedrooms} BHK • ${p.bathrooms || '-'} bath`;
   if (p.furnishing) text += ` • ${p.furnishing}`;
   if (p.parking === 1) text += ' • Parking';
   if (p.balcony === 1) text += ' • Balcony';
-  text += `\nWhy it matches: ${matchResult.matchReasons.join('; ')}.\n`;
+  text += `\nWhy it matches: ${m.matchReasons.join('; ')}.\n`;
   text += `Photos: ${p.photos.length} available\n`;
   return text;
 }
@@ -238,13 +238,40 @@ function handleMessage(phone, text) {
     const numMatch = trimmed.match(/^(\d+)$/);
     if (numMatch) {
       const choice = parseInt(numMatch[1]);
-      // This would be handled in visit booking flow
-      return `You selected property ${choice}. Reply 'yes' to book a visit or 'no' to see more options.`;
+      const results = match(state.requirements, SAMPLE_PROPERTIES);
+      const selected = results[choice - 1];
+      if (selected) {
+        state.state = 'visit_pending';
+        state.pendingVisit = {
+          propertyId: selected.property.id,
+          propertyTitle: selected.property.title,
+          propertyRent: selected.property.rent,
+          propertyLocation: selected.property.location,
+        };
+        return `Shall I book a visit for *${selected.property.title}*?\n₹${selected.property.rent}/month • ${selected.property.location}\nReply "yes" to confirm or "no" to cancel.`;
+      }
+      return 'Invalid property number. Please select a valid number from the list.';
     }
     // New search - reset and start over
     state.state = 'greeting';
     state.requirements = {};
     return 'Hello! 👋 Welcome back to SmartRent AI. What is your maximum monthly budget (e.g., ₹12,000)?';
+  }
+
+  // Visit pending state - confirm or cancel
+  if (state.state === 'visit_pending') {
+    if (lowered === 'yes' || lowered === 'ok' || lowered === 'confirm' || lowered === 'sure' || lowered === 'y') {
+      const v = state.pendingVisit;
+      state.state = 'matching';
+      state.pendingVisit = null;
+      return `✅ Visit booked for *${v.propertyTitle}*!\n\nRent: ₹${v.propertyRent}/month\nLocation: ${v.propertyLocation}\n\nI\u2019ll confirm the visit date & time with you shortly.`;
+    }
+    if (lowered === 'no' || lowered === 'cancel' || lowered === 'not now' || lowered === 'n') {
+      state.state = 'matching';
+      state.pendingVisit = null;
+      return 'Okay, visit cancelled. Let me know if you want to see other properties.';
+    }
+    return 'Please reply "yes" to confirm the visit or "no" to cancel.';
   }
 
   // Unknown input fallback

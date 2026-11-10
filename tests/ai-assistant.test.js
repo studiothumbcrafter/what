@@ -64,4 +64,29 @@ describe('AI rental assistant - conversation state machine', () => {
     const rentMatches = reply.match(/₹\d+/g) || [];
     expect(rentMatches.length).toBeLessThanOrEqual(3);
   });
+
+  test('visit booking flow: select property then confirm', () => {
+    let reply = handleMessage('+919876543302', 'hello');
+    reply = handleMessage('+919876543302', '12000');
+    reply = handleMessage('+919876543302', 'Mumbai');
+    reply = handleMessage('+919876543302', '2BHK');
+    // Select property 1
+    reply = handleMessage('+919876543302', '1');
+    expect(reply).toContain('visit');
+    expect(reply).toContain('yes');
+    // Confirm visit
+    reply = handleMessage('+919876543302', 'yes');
+    expect(reply).toContain('booked');
+    expect(reply).not.toContain('confirmed');
+  });
+
+  test('visit booking flow: decline visit', () => {
+    let reply = handleMessage('+919876543303', 'hello');
+    reply = handleMessage('+919876543303', '12000');
+    reply = handleMessage('+919876543303', 'Mumbai');
+    reply = handleMessage('+919876543303', '2BHK');
+    reply = handleMessage('+919876543303', '1');
+    reply = handleMessage('+919876543303', 'no');
+    expect(reply).toContain('cancelled');
+  });
 });
