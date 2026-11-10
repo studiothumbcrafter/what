@@ -80,7 +80,7 @@ const SAMPLE_PROPERTIES = [
 
 function getState(phone) {
   if (!conversations.has(phone)) {
-    conversations.set(phone, { state: 'greeting', requirements: {} });
+    conversations.set(phone, { state: 'greeting', requirements: {}, humanHeld: false });
   }
   return conversations.get(phone);
 }
@@ -278,4 +278,14 @@ function handleMessage(phone, text) {
   return 'I did not understand that. Please reply with your maximum monthly budget (e.g., ₹12,000).';
 }
 
-module.exports = { handleMessage, getState };
+function takeover(phone) {
+  const state = getState(phone);
+  state.humanHeld = true;
+}
+
+function reactivate(phone) {
+  const state = getState(phone);
+  state.humanHeld = false;
+}
+
+module.exports = { handleMessage, getState, takeover, reactivate };

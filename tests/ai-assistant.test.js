@@ -89,4 +89,14 @@ describe('AI rental assistant - conversation state machine', () => {
     reply = handleMessage('+919876543303', 'no');
     expect(reply).toContain('cancelled');
   });
+
+  test('human takeover pauses AI, reactivate resumes', () => {
+    const { handleMessage, takeover, reactivate } = require('../services/ai-assistant');
+    takeover('+919876543400');
+    const reply1 = handleMessage('+919876543400', 'hello');
+    expect(reply1).toBeUndefined();
+    reactivate('+919876543400');
+    const reply2 = handleMessage('+919876543400', 'hello');
+    expect(reply2).toContain('Hello');
+  });
 });
