@@ -19,7 +19,6 @@ app.use(express.urlencoded({ extended: true }));
 let db;
 try {
   db = init();
-  console.log('[db] SQLite initialized');
 } catch (err) {
   console.error('[db] init failed:', err.message);
   process.exit(1);
@@ -27,23 +26,50 @@ try {
 
 app.locals.db = db;
 
+// Express 4 does not catch rejected promises from async handlers.
+function wrap(handler) {
+  return function (req, res, next) {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+}
+
+const { ensureTrialSubscription, enforceLimit, recordUsage } = require('./services/subscription');
+
+// Map the single owner account to an organization for tenant-scoped data.
+// Startup work is async for Postgres, so routes that need the org await `ready`.
+let OWNER_ORG_ID = null;
+let startupError = null;
+const ready = (async function () {
+  if (db.ready) await db.ready;
+  OWNER_ORG_ID = await ensureOwnerOrg(db);
+  await backfillOrganization(db, OWNER_ORG_ID);
+  await ensureTrialSubscription(db, OWNER_ORG_ID);
+  console.log('[db] ready (' + db.kind + '), owner org: ' + OWNER_ORG_ID);
+})().catch(function (err) {
+  startupError = err;
+  console.error('[db] startup failed:', err.message);
+});
+
 // Health check for Render and uptime monitors.
-app.get('/health', (req, res) => {
-  res.json({ ok: true, uptime: Math.round(process.uptime()), db: 'sqlite' });
+app.get('/health', function (req, res) {
+  const ok = !startupError;
+  res.status(ok ? 200 : 503).json({
+    ok: ok,
+    uptime: Math.round(process.uptime()),
+    db: db.kind || 'sqlite',
+  });
 });
 
 // Default owner credentials
 const OWNER_USERNAME = process.env.OWNER_USERNAME || 'admin';
 const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'admin123';
 
-// Map the single owner account to an organization for tenant-scoped data.
-const OWNER_ORG_ID = ensureOwnerOrg(db);
-backfillOrganization(db, OWNER_ORG_ID);
-const { ensureTrialSubscription, enforceLimit, recordUsage } = require('./services/subscription');
-ensureTrialSubscription(db, OWNER_ORG_ID);
-
 // Owner login
-app.post('/api/owner/login', (req, res) => {
+app.post('/api/owner/login', wrap(async function (req, res) {
+  await ready;
+  if (startupError) {
+    return res.status(503).json({ error: 'Database is not ready. Try again shortly.' });
+  }
   const { username, password } = req.body || {};
   if (username === OWNER_USERNAME && password === OWNER_PASSWORD) {
     const token = jwt.sign(
@@ -54,10 +80,10 @@ app.post('/api/owner/login', (req, res) => {
     return res.json({ token, username, org_id: OWNER_ORG_ID });
   }
   res.status(401).json({ error: 'Invalid credentials' });
-});
+}));
 
 // Public property browse (with search) - MUST come before owner routes mount
-app.get('/api/properties', (req, res) => {
+app.get('/api/properties', wrap(async function (req, res) {
   const d = req.app.locals.db;
   let query = 'SELECT * FROM properties WHERE status = @status';
   const params = { status: 'available' };
@@ -70,10 +96,14 @@ app.get('/api/properties', (req, res) => {
     params.rent_max = parseInt(req.query.rent_max);
   }
   query += ' ORDER BY created_at DESC';
-  const props = d.prepare(query).all(params);
-  const result = props.map(p => {
-    const media = d.prepare('SELECT * FROM property_media WHERE property_id = @id AND type = @type ORDER BY created_at ASC').all({ id: p.id, type: 'photo' });
-    return {
+  const props = await d.all(query, params);
+  const result = [];
+  for (const p of props) {
+    const media = await d.all(
+      'SELECT * FROM property_media WHERE property_id = @id AND type = @type ORDER BY created_at ASC',
+      { id: p.id, type: 'photo' }
+    );
+    result.push({
       id: p.id,
       title: p.title,
       rent: p.rent,
@@ -91,20 +121,31 @@ app.get('/api/properties', (req, res) => {
       created_at: p.created_at,
       photo_count: media.length,
       photos: media.map(m => m.file_path),
-    };
-  });
+    });
+  }
   res.json(result);
-});
+}));
+
+// Excel download. Must be registered before the owner router, otherwise
+// /api/properties/:id inside routes/owner.js swallows "export" as an id.
+app.get('/api/properties/export', authenticateToken, wrap(async function (req, res) {
+  try {
+    await exportPropertiesToExcel(req.user.org_id);
+    res.download(path.join(dataDir(), 'properties.xlsx'), 'properties.xlsx');
+  } catch (err) {
+    res.status(500).json({ error: 'Export failed: ' + err.message });
+  }
+}));
 
 // Owner dashboard APIs (authenticated)
 app.use('/api', require('./routes/owner'));
 
 // Visit request from website
-app.post('/api/visits/request', authenticateToken, (req, res) => {
+app.post('/api/visits/request', authenticateToken, wrap(async function (req, res) {
   const d = req.app.locals.db;
   const { property_id, message } = req.body || {};
   if (!property_id) return res.status(400).json({ error: 'property_id is required' });
-  const prop = d.prepare('SELECT * FROM properties WHERE id = @id').get({ id: property_id });
+  const prop = await d.get('SELECT * FROM properties WHERE id = @id', { id: property_id });
   if (!prop) return res.status(404).json({ error: 'Property not found' });
   if (prop.organization_id && req.user.org_id && prop.organization_id !== req.user.org_id) {
     return res.status(404).json({ error: 'Property not found' });
@@ -114,19 +155,19 @@ app.post('/api/visits/request', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Token is missing organization context' });
   }
   try {
-    enforceLimit(d, orgId, 'visit');
+    await enforceLimit(d, orgId, 'visit');
   } catch (err) {
     return res.status(err.statusCode || 500).json({ error: err.message });
   }
   const Visit = require('./models/Visit');
   Visit.setDatabase(d);
-  const visit = Visit.create(req.user.phone || 'website-customer', property_id, message || 'Visit requested via website', orgId);
-  recordUsage(d, orgId, 'visit', 1);
+  const visit = await Visit.create(req.user.phone || 'website-customer', property_id, message || 'Visit requested via website', orgId);
+  await recordUsage(d, orgId, 'visit', 1);
   res.json({ ok: true, visit });
-});
+}));
 
 // Visit management (owner)
-app.patch('/api/visits/:id/status', authenticateToken, (req, res) => {
+app.patch('/api/visits/:id/status', authenticateToken, wrap(async function (req, res) {
   const d = req.app.locals.db;
   const { status } = req.body || {};
   if (!status || !['approved', 'rejected'].includes(status)) {
@@ -134,12 +175,12 @@ app.patch('/api/visits/:id/status', authenticateToken, (req, res) => {
   }
   const Visit = require('./models/Visit');
   Visit.setDatabase(d);
-  const visit = Visit.setStatus(req.params.id, status, req.user.org_id);
+  const visit = await Visit.setStatus(req.params.id, status, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
-});
+}));
 
-app.patch('/api/visits/:id/schedule', authenticateToken, (req, res) => {
+app.patch('/api/visits/:id/schedule', authenticateToken, wrap(async function (req, res) {
   const d = req.app.locals.db;
   const { visit_date, visit_time } = req.body || {};
   if (!visit_date || !visit_time) {
@@ -147,10 +188,10 @@ app.patch('/api/visits/:id/schedule', authenticateToken, (req, res) => {
   }
   const Visit = require('./models/Visit');
   Visit.setDatabase(d);
-  const visit = Visit.setVisitDetails(req.params.id, visit_date, visit_time, req.user.org_id);
+  const visit = await Visit.setVisitDetails(req.params.id, visit_date, visit_time, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
-});
+}));
 
 // Owner app (mobile-first)
 app.get('/owner', (req, res) => {
@@ -171,11 +212,11 @@ app.get('/manifest.json', (req, res) => {
 });
 
 // Excel export function
-function exportPropertiesToExcel(organizationId) {
+async function exportPropertiesToExcel(organizationId) {
   try {
     const props = organizationId
-      ? db.prepare('SELECT * FROM properties WHERE organization_id = ? ORDER BY created_at DESC').all(organizationId)
-      : db.prepare('SELECT * FROM properties ORDER BY created_at DESC').all();
+      ? await db.all('SELECT * FROM properties WHERE organization_id = ? ORDER BY created_at DESC', [organizationId])
+      : await db.all('SELECT * FROM properties ORDER BY created_at DESC');
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Properties');
     sheet.columns = [
@@ -215,7 +256,7 @@ function exportPropertiesToExcel(organizationId) {
       });
     });
     const excelPath = path.join(dataDir(), 'properties.xlsx');
-    workbook.xlsx.writeFile(excelPath);
+    await workbook.xlsx.writeFile(excelPath);
     console.log('[excel] Properties exported to ' + excelPath);
   } catch (err) {
     console.warn('[excel] Export failed:', err.message);
@@ -227,22 +268,12 @@ function exportPropertiesToExcel(organizationId) {
 let waClient = null;
 console.log('[whatsapp] Skipped (no Chrome display in this environment)');
 
-// Export endpoint
-app.get('/api/properties/export', authenticateToken, (req, res) => {
-  try {
-    exportPropertiesToExcel(req.user.org_id);
-    res.download(path.join(dataDir(), 'properties.xlsx'), 'properties.xlsx');
-  } catch (err) {
-    res.status(500).json({ error: 'Export failed: ' + err.message });
-  }
-});
+// Export endpoint removed: registered earlier, before the owner router.
 
 // WhatsApp webhook endpoint
-app.post('/webhook/whatsapp', (req, res) => {
+app.post('/webhook/whatsapp', wrap(async function (req, res) {
   const { verifyWebhookSignature, parseWebhookMessage } = require('./services/whatsapp-cloud');
   const { sendMessage } = require('./services/whatsapp-cloud');
-  const { init } = require('./db');
-  const db = init();
 
   const signature = req.headers['x-hub-signature-256'];
   const payload = req.body;
@@ -274,7 +305,7 @@ app.post('/webhook/whatsapp', (req, res) => {
   }
 
   res.status(200).json({ status: 'ok' });
-});
+}));
 
 app.listen(PORT, () => {
   console.log(`[server] SmartRent AI running on http://localhost:${PORT}`);

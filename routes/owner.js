@@ -44,6 +44,13 @@ router.use(function (req, res, next) {
   next();
 });
 
+// Express 4 does not catch rejected promises from async handlers.
+function wrap(handler) {
+  return function (req, res, next) {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+}
+
 // Serve uploaded files
 router.get('/uploads/:type/:filename', function (req, res) {
   var type = req.params.type;
@@ -56,12 +63,14 @@ router.get('/uploads/:type/:filename', function (req, res) {
 });
 
 // List all properties (with media count)
-router.get('/properties', function (req, res) {
-  var props = Property.getAll(req.user.org_id);
-  var result = props.map(function (p) {
-    var media = Media.getByProperty(p.id);
+router.get('/properties', wrap(async function (req, res) {
+  var props = await Property.getAll(req.user.org_id);
+  var result = [];
+  for (var i = 0; i < props.length; i++) {
+    var p = props[i];
+    var media = await Media.getByProperty(p.id);
     var photos = media.filter(function (m) { return m.type === 'photo'; });
-    return {
+    result.push({
       id: p.id,
       title: p.title,
       rent: p.rent,
@@ -79,26 +88,25 @@ router.get('/properties', function (req, res) {
       created_at: p.created_at,
       photo_count: photos.length,
       photos: photos.map(function (m) { return m.file_path; }),
-    };
-  });
+    });
+  }
   res.json(result);
-});
+}));
 
 // Get one property with its media
-router.get('/properties/:id', function (req, res) {
-  var prop = Property.get(req.params.id, req.user.org_id);
+router.get('/properties/:id', wrap(async function (req, res) {
+  var prop = await Property.get(req.params.id, req.user.org_id);
   if (!prop) return res.status(404).json({ error: 'Property not found' });
-  var media = Media.getByProperty(prop.id);
-  prop.media = media;
+  prop.media = await Media.getByProperty(prop.id);
   res.json(prop);
-});
+}));
 
 // Excel export helper
-function exportPropertiesToExcel(db, organizationId) {
+async function exportPropertiesToExcel(db, organizationId) {
   try {
     const props = organizationId
-      ? db.prepare('SELECT * FROM properties WHERE organization_id = ? ORDER BY created_at DESC').all(organizationId)
-      : db.prepare('SELECT * FROM properties ORDER BY created_at DESC').all();
+      ? await db.all('SELECT * FROM properties WHERE organization_id = ? ORDER BY created_at DESC', [organizationId])
+      : await db.all('SELECT * FROM properties ORDER BY created_at DESC');
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Properties');
     sheet.columns = [
@@ -138,14 +146,14 @@ function exportPropertiesToExcel(db, organizationId) {
       });
     });
     const excelPath = path.join(dataDir(), 'properties.xlsx');
-    workbook.xlsx.writeFile(excelPath);
+    await workbook.xlsx.writeFile(excelPath);
   } catch (err) {
     console.warn('[excel] Export failed:', err.message);
   }
 }
 
 // Create a property
-router.post('/properties', function (req, res) {
+router.post('/properties', wrap(async function (req, res) {
   var props = req.body || {};
   if (!props.rent || !props.location) {
     return res.status(400).json({ error: 'rent and location are required' });
@@ -154,49 +162,49 @@ router.post('/properties', function (req, res) {
     return res.status(403).json({ error: 'Token is missing organization context' });
   }
   try {
-    enforceLimit(req.app.locals.db, req.user.org_id, 'property');
+    await enforceLimit(req.app.locals.db, req.user.org_id, 'property');
   } catch (err) {
     return res.status(err.statusCode || 500).json({ error: err.message });
   }
   try {
-    var created = Property.create(props, req.user.org_id);
-    exportPropertiesToExcel(req.app.locals.db, req.user.org_id);
+    var created = await Property.create(props, req.user.org_id);
+    await exportPropertiesToExcel(req.app.locals.db, req.user.org_id);
     res.status(201).json(created);
   } catch (err) {
     res.status(500).json({ error: err.message || 'Database error' });
   }
-});
+}));
 
 // Update a property
-router.put('/properties/:id', function (req, res) {
+router.put('/properties/:id', wrap(async function (req, res) {
   var props = req.body || {};
-  var updated = Property.update(req.params.id, props, req.user.org_id);
+  var updated = await Property.update(req.params.id, props, req.user.org_id);
   if (!updated) return res.status(404).json({ error: 'Property not found' });
   res.json(updated);
-});
+}));
 
 // Toggle status
-router.patch('/properties/:id/status', function (req, res) {
+router.patch('/properties/:id/status', wrap(async function (req, res) {
   var props = req.body || {};
   var status = props.status;
   if (!status) return res.status(400).json({ error: 'status is required' });
-  var updated = Property.setStatus(req.params.id, status, req.user.org_id);
+  var updated = await Property.setStatus(req.params.id, status, req.user.org_id);
   if (!updated) return res.status(404).json({ error: 'Property not found' });
   res.json(updated);
-});
+}));
 
 // Delete a property and its media files
-router.delete('/properties/:id', function (req, res) {
-  var removed = Property.remove(req.params.id, req.user.org_id);
+router.delete('/properties/:id', wrap(async function (req, res) {
+  var removed = await Property.remove(req.params.id, req.user.org_id);
   if (!removed) return res.status(404).json({ error: 'Property not found' });
-  Media.removeByProperty(req.params.id);
+  await Media.removeByProperty(req.params.id);
   res.json({ ok: true });
-});
+}));
 
 // Upload media for a property (multiple photos + one video)
-router.post('/properties/:id/media', upload.array('files'), function (req, res) {
+router.post('/properties/:id/media', upload.array('files'), wrap(async function (req, res) {
   var propertyId = req.params.id;
-  var prop = Property.get(propertyId, req.user.org_id);
+  var prop = await Property.get(propertyId, req.user.org_id);
   if (!prop) {
     return res.status(404).json({ error: 'Property not found' });
   }
@@ -206,83 +214,82 @@ router.post('/properties/:id/media', upload.array('files'), function (req, res) 
     var f = files[i];
     var type = f.fieldname === 'video' ? 'video' : 'photo';
     var filePath = '/uploads/' + (type === 'video' ? 'videos' : 'photos') + '/' + f.filename;
-    var m = Media.add(propertyId, type, filePath);
-    added.push(m);
+    added.push(await Media.add(propertyId, type, filePath));
   }
   res.json({ media: added });
-});
+}));
 
 // List media for a property
-router.get('/properties/:id/media', function (req, res) {
-  var prop = Property.get(req.params.id, req.user.org_id);
+router.get('/properties/:id/media', wrap(async function (req, res) {
+  var prop = await Property.get(req.params.id, req.user.org_id);
   if (!prop) return res.status(404).json({ error: 'Property not found' });
-  var media = Media.getByProperty(req.params.id);
-  res.json(media);
-});
+  res.json(await Media.getByProperty(req.params.id));
+}));
 
 // Match requests view (owner)
-router.get('/matches', function (req, res) {
+router.get('/matches', wrap(async function (req, res) {
   const d = req.app.locals.db;
-  const orgId = req.user.org_id;
-  const rows = d.prepare(`
+  const rows = await d.all(`
     SELECT m.id, m.phone, m.property_id, m.shown_at, p.title, p.rent, p.location, p.bedrooms
     FROM matches m
     JOIN properties p ON p.id = m.property_id
     WHERE m.organization_id = ?
     ORDER BY m.shown_at DESC
-  `).all(orgId);
+  `, [req.user.org_id]);
   res.json(rows);
-});
+}));
 
 // Interested customers view (owner)
-router.get('/customers', function (req, res) {
+router.get('/customers', wrap(async function (req, res) {
   const d = req.app.locals.db;
-  const rows = d.prepare('SELECT * FROM customers WHERE organization_id = ? ORDER BY updated_at DESC').all(req.user.org_id);
+  const rows = await d.all('SELECT * FROM customers WHERE organization_id = ? ORDER BY updated_at DESC', [req.user.org_id]);
   const result = rows.map(r => {
     let requirements = {};
     try { requirements = JSON.parse(r.requirements || '{}'); } catch (e) {}
     return { phone: r.phone, name: r.name, state: r.state, requirements: requirements, created_at: r.created_at, updated_at: r.updated_at };
   });
   res.json(result);
-});
+}));
 
 // Allowed contacts (whitelist) — who can use the rental agent
-router.get('/allowed-contacts', function (req, res) {
+router.get('/allowed-contacts', wrap(async function (req, res) {
   const d = req.app.locals.db;
-  const rows = d.prepare('SELECT * FROM allowed_contacts WHERE organization_id = ? ORDER BY added_at DESC').all(req.user.org_id);
+  const rows = await d.all('SELECT * FROM allowed_contacts WHERE organization_id = ? ORDER BY added_at DESC', [req.user.org_id]);
   res.json(rows);
-});
+}));
 
-router.post('/allowed-contacts', function (req, res) {
+router.post('/allowed-contacts', wrap(async function (req, res) {
   const d = req.app.locals.db;
   const orgId = req.user.org_id;
   const { phone, name } = req.body || {};
   if (!phone) return res.status(400).json({ error: 'phone is required' });
   try {
-    const existing = d.prepare('SELECT organization_id FROM allowed_contacts WHERE phone = ?').get(phone);
+    const existing = await d.get('SELECT organization_id FROM allowed_contacts WHERE phone = ?', [phone]);
     if (existing && existing.organization_id && existing.organization_id !== orgId) {
       return res.status(409).json({ error: 'This phone number is already registered with another workspace' });
     }
-    d.prepare(`
+    await d.run(`
       INSERT INTO allowed_contacts (phone, name, added_at, organization_id)
       VALUES (@phone, @name, @added_at, @organization_id)
       ON CONFLICT(phone) DO UPDATE SET
         name = excluded.name,
         added_at = excluded.added_at,
         organization_id = excluded.organization_id
-    `).run({ phone, name: name || null, added_at: new Date().toISOString(), organization_id: orgId });
+    `, { phone, name: name || null, added_at: new Date().toISOString(), organization_id: orgId });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
-router.delete('/allowed-contacts/:phone', function (req, res) {
+router.delete('/allowed-contacts/:phone', wrap(async function (req, res) {
   const d = req.app.locals.db;
-  d.prepare('DELETE FROM allowed_contacts WHERE phone = @phone AND organization_id = @organization_id')
-    .run({ phone: req.params.phone, organization_id: req.user.org_id });
+  await d.run('DELETE FROM allowed_contacts WHERE phone = @phone AND organization_id = @organization_id', {
+    phone: req.params.phone,
+    organization_id: req.user.org_id,
+  });
   res.json({ ok: true });
-});
+}));
 
 // WhatsApp Cloud API status (no QR pairing)
 router.get('/whatsapp/qr', function (req, res) {
@@ -310,7 +317,7 @@ router.post('/whatsapp/disconnect', function (req, res) {
 });
 
 // Subscription status
-router.get('/subscription/status', function (req, res) {
+router.get('/subscription/status', wrap(async function (req, res) {
   const d = req.app.locals.db;
   const orgId = req.user.org_id;
 
@@ -318,7 +325,7 @@ router.get('/subscription/status', function (req, res) {
     return res.status(403).json({ error: 'Token is missing organization context' });
   }
 
-  const subscription = d.prepare(`
+  const subscription = await d.get(`
     SELECT s.*, p.name AS plan_name,
            COALESCE(s.price_paise, p.price_paise) AS effective_price_paise,
            p.billing_interval, p.property_limit,
@@ -326,7 +333,7 @@ router.get('/subscription/status', function (req, res) {
     FROM subscriptions s
     LEFT JOIN plans p ON s.plan_id = p.id
     WHERE s.organization_id = ?
-  `).get(orgId);
+  `, [orgId]);
 
   if (!subscription) {
     return res.json({
@@ -336,21 +343,23 @@ router.get('/subscription/status', function (req, res) {
     });
   }
 
-  const propertyCount = d.prepare(
-    'SELECT COUNT(*) AS count FROM properties WHERE organization_id = ?'
-  ).get(orgId).count;
+  const propertyRow = await d.get(
+    'SELECT COUNT(*) AS count FROM properties WHERE organization_id = ?',
+    [orgId]
+  );
+  const propertyCount = Number(propertyRow ? propertyRow.count : 0);
 
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   const monthKey = monthStart.toISOString().slice(0, 10);
-  const usage = d.prepare(`
+  const usage = await d.all(`
     SELECT type, COALESCE(SUM(count), 0) AS total
     FROM usage_logs
     WHERE organization_id = ? AND date >= ?
     GROUP BY type
-  `).all(orgId, monthKey);
+  `, [orgId, monthKey]);
   const usageByType = {};
-  usage.forEach(function (row) { usageByType[row.type] = row.total; });
+  usage.forEach(function (row) { usageByType[row.type] = Number(row.total); });
 
   res.json({
     subscription_id: subscription.id,
@@ -377,54 +386,54 @@ router.get('/subscription/status', function (req, res) {
     ai_usage: subscription.ai_usage || 0,
     created_at: subscription.created_at
   });
-});
+}));
 
 // Visit requests — list all visits
-router.get('/visits', function (req, res) {
+router.get('/visits', wrap(async function (req, res) {
   const d = req.app.locals.db;
-  const rows = d.prepare(`
+  const rows = await d.all(`
     SELECT v.*, p.title, p.rent, p.location, p.bedrooms
     FROM visits v
     JOIN properties p ON p.id = v.property_id
     WHERE v.organization_id = ?
     ORDER BY v.created_at DESC
-  `).all(req.user.org_id);
+  `, [req.user.org_id]);
   res.json(rows);
-});
+}));
 
 // Visit requests — pending only
-router.get('/visits/pending', function (req, res) {
+router.get('/visits/pending', wrap(async function (req, res) {
   const d = req.app.locals.db;
-  const rows = d.prepare(`
+  const rows = await d.all(`
     SELECT v.*, p.title, p.rent, p.location, p.bedrooms
     FROM visits v
     JOIN properties p ON p.id = v.property_id
     WHERE v.status = 'pending' AND v.organization_id = ?
     ORDER BY v.created_at DESC
-  `).all(req.user.org_id);
+  `, [req.user.org_id]);
   res.json(rows);
-});
+}));
 
 // Approve / reject a visit
-router.patch('/visits/:id/status', function (req, res) {
+router.patch('/visits/:id/status', wrap(async function (req, res) {
   const { status } = req.body || {};
   if (!status || !['approved', 'rejected'].includes(status)) {
     return res.status(400).json({ error: 'status must be approved or rejected' });
   }
-  const visit = Visit.setStatus(req.params.id, status, req.user.org_id);
+  const visit = await Visit.setStatus(req.params.id, status, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
-});
+}));
 
 // Set visit date & time
-router.patch('/visits/:id/schedule', function (req, res) {
+router.patch('/visits/:id/schedule', wrap(async function (req, res) {
   const { visit_date, visit_time } = req.body || {};
   if (!visit_date || !visit_time) {
     return res.status(400).json({ error: 'visit_date and visit_time are required' });
   }
-  const visit = Visit.setVisitDetails(req.params.id, visit_date, visit_time, req.user.org_id);
+  const visit = await Visit.setVisitDetails(req.params.id, visit_date, visit_time, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
-});
+}));
 
 module.exports = router;

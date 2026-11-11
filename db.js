@@ -9,6 +9,39 @@ function dbPath() {
 }
 
 function init() {
+  if (process.env.DATABASE_URL && !process.env.SMARTRENT_TEST_DB) {
+    const { createPostgresAdapter } = require('./services/postgres-adapter');
+    console.log('[db] PostgreSQL adapter');
+    return createPostgresAdapter(process.env.DATABASE_URL);
+  }
+  return wrapSqlite(initSqlite());
+}
+
+function wrapSqlite(db) {
+  function call(method, sql, params) {
+    const stmt = db.prepare(sql);
+    return params === undefined ? stmt[method]() : stmt[method](params);
+  }
+
+  db.kind = 'sqlite';
+  db.get = async function (sql, params) { return call('get', sql, params); };
+  db.all = async function (sql, params) { return call('all', sql, params); };
+  db.run = async function (sql, params) { return call('run', sql, params); };
+  db.transaction = async function (fn) {
+    db.exec('BEGIN');
+    try {
+      const result = await fn(db);
+      db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  };
+  return db;
+}
+
+function initSqlite() {
   fs.mkdirSync(path.dirname(dbPath()), { recursive: true });
   const db = new Database(dbPath());
   db.pragma('journal_mode = WAL');

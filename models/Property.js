@@ -14,14 +14,13 @@ function generateId() {
   return `PRP-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
 }
 
-function create(props, organizationId) {
+async function create(props, organizationId) {
   const id = generateId();
   const createdAt = now();
-  const stmt = db.prepare(`
+  await db.run(`
     INSERT INTO properties (id, organization_id, title, rent, location, bedrooms, bathrooms, furnishing, parking, balcony, floor, facilities, availability_date, info, status, created_at)
     VALUES (@id, @organization_id, @title, @rent, @location, @bedrooms, @bathrooms, @furnishing, @parking, @balcony, @floor, @facilities, @availability_date, @info, @status, @created_at)
-  `);
-  stmt.run({
+  `, {
     id,
     organization_id: organizationId || props.organization_id || '',
     title: props.title || null,
@@ -39,28 +38,30 @@ function create(props, organizationId) {
     status: props.status || 'available',
     created_at: createdAt,
   });
-  return get(id);
+  return await get(id);
 }
 
-function get(id, organizationId) {
+async function get(id, organizationId) {
   if (organizationId) {
-    return db.prepare(
-      'SELECT * FROM properties WHERE id = @id AND organization_id = @organizationId'
-    ).get({ id, organizationId });
+    return db.get(
+      'SELECT * FROM properties WHERE id = @id AND organization_id = @organizationId',
+      { id, organizationId }
+    );
   }
-  return db.prepare('SELECT * FROM properties WHERE id = @id').get({ id });
+  return db.get('SELECT * FROM properties WHERE id = @id', { id });
 }
 
-function getAll(organizationId) {
+async function getAll(organizationId) {
   if (organizationId) {
-    return db.prepare(
-      'SELECT * FROM properties WHERE organization_id = @organizationId ORDER BY created_at DESC'
-    ).all({ organizationId });
+    return db.all(
+      'SELECT * FROM properties WHERE organization_id = @organizationId ORDER BY created_at DESC',
+      { organizationId }
+    );
   }
-  return db.prepare('SELECT * FROM properties ORDER BY created_at DESC').all();
+  return db.all('SELECT * FROM properties ORDER BY created_at DESC');
 }
 
-function update(id, props, organizationId) {
+async function update(id, props, organizationId) {
   const fields = [];
   const values = { id };
   const allowed = [
@@ -73,29 +74,27 @@ function update(id, props, organizationId) {
       values[key] = props[key];
     }
   }
-  if (fields.length === 0) return get(id, organizationId);
+  if (fields.length === 0) return await get(id, organizationId);
   let where = 'WHERE id = @id';
   if (organizationId) {
     where += ' AND organization_id = @organizationId';
     values.organizationId = organizationId;
   }
-  const stmt = db.prepare(`UPDATE properties SET ${fields.join(', ')} ${where}`);
-  stmt.run(values);
-  return get(id, organizationId);
+  await db.run(`UPDATE properties SET ${fields.join(', ')} ${where}`, values);
+  return await get(id, organizationId);
 }
 
 function setStatus(id, status, organizationId) {
   return update(id, { status }, organizationId);
 }
 
-function remove(id, organizationId) {
-  const row = get(id, organizationId);
+async function remove(id, organizationId) {
+  const row = await get(id, organizationId);
   if (!row) return null;
   if (organizationId) {
-    db.prepare('DELETE FROM properties WHERE id = @id AND organization_id = @organizationId')
-      .run({ id, organizationId });
+    await db.run('DELETE FROM properties WHERE id = @id AND organization_id = @organizationId', { id, organizationId });
   } else {
-    db.prepare('DELETE FROM properties WHERE id = @id').run({ id });
+    await db.run('DELETE FROM properties WHERE id = @id', { id });
   }
   return row;
 }

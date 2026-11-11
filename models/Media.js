@@ -16,23 +16,22 @@ function generateId() {
   return 'MED-' + Date.now() + '-' + crypto.randomInt(1000, 9999);
 }
 
-function add(propertyId, type, filePath) {
+async function add(propertyId, type, filePath) {
   var id = generateId();
   var createdAt = now();
-  var stmt = db.prepare(
-    'INSERT INTO property_media (id, property_id, type, file_path, created_at) VALUES (?, ?, ?, ?, ?)'
+  await db.run(
+    'INSERT INTO property_media (id, property_id, type, file_path, created_at) VALUES (?, ?, ?, ?, ?)',
+    [id, propertyId, type, filePath, createdAt]
   );
-  stmt.run(id, propertyId, type, filePath, createdAt);
   return { id: id, property_id: propertyId, type: type, file_path: filePath, created_at: createdAt };
 }
 
-function getByProperty(propertyId) {
-  var stmt = db.prepare('SELECT * FROM property_media WHERE property_id = ? ORDER BY created_at ASC');
-  return stmt.all(propertyId);
+async function getByProperty(propertyId) {
+  return db.all('SELECT * FROM property_media WHERE property_id = ? ORDER BY created_at ASC', [propertyId]);
 }
 
-function removeByProperty(propertyId) {
-  var media = getByProperty(propertyId);
+async function removeByProperty(propertyId) {
+  var media = await getByProperty(propertyId);
   for (var i = 0; i < media.length; i++) {
     var m = media[i];
     try {
@@ -42,7 +41,7 @@ function removeByProperty(propertyId) {
       // file may not exist
     }
   }
-  db.prepare('DELETE FROM property_media WHERE property_id = ?').run(propertyId);
+  await db.run('DELETE FROM property_media WHERE property_id = ?', [propertyId]);
   return media;
 }
 

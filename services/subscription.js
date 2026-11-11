@@ -1,40 +1,43 @@
 // Subscription helpers: trials and plan-limit enforcement (Stage 5).
+// All queries go through the async db adapter (SQLite for tests, Postgres in production).
 
-function getSubscription(db, orgId) {
-  const row = db.prepare(`
+async function getSubscription(db, orgId) {
+  const row = await db.get(`
     SELECT s.*, p.name AS plan_name,
            COALESCE(s.price_paise, p.price_paise) AS effective_price_paise,
            p.property_limit, p.monthly_match_limit, p.monthly_visit_limit
     FROM subscriptions s
     LEFT JOIN plans p ON s.plan_id = p.id
     WHERE s.organization_id = ?
-  `).get(orgId);
+  `, [orgId]);
 
   if (row && row.status === 'trialing' && row.trial_end) {
     if (new Date(row.trial_end).getTime() < Date.now()) {
-      db.prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ?").run(row.id);
+      await db.run("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [row.id]);
       row.status = 'expired';
     }
   }
   return row;
 }
 
-function ensureTrialSubscription(db, orgId, days) {
+async function ensureTrialSubscription(db, orgId, days) {
   if (!orgId) return null;
-  const existing = db.prepare(
-    'SELECT id FROM subscriptions WHERE organization_id = ?'
-  ).get(orgId);
-  if (existing) return getSubscription(db, orgId);
+  const existing = await db.get(
+    'SELECT id FROM subscriptions WHERE organization_id = ?',
+    [orgId]
+  );
+  if (existing) return await getSubscription(db, orgId);
 
+  const nowIso = new Date().toISOString();
   const trialEnd = new Date(Date.now() + (days || 14) * 24 * 60 * 60 * 1000).toISOString();
-  db.prepare(`
+  await db.run(`
     INSERT INTO subscriptions
       (id, organization_id, plan, plan_id, status, price_paise, currency,
        trial_start, trial_end, created_at)
-    VALUES (?, ?, 'starter', 'plan-starter', 'trialing', 49900, 'INR', datetime('now'), ?, datetime('now'))
-  `).run('sub-' + orgId, orgId, trialEnd);
+    VALUES (?, ?, 'starter', 'plan-starter', 'trialing', 49900, 'INR', ?, ?, ?)
+  `, ['sub-' + orgId, orgId, nowIso, trialEnd, nowIso]);
 
-  return getSubscription(db, orgId);
+  return await getSubscription(db, orgId);
 }
 
 function limitError(kind, limit) {
@@ -53,25 +56,25 @@ function startOfMonth() {
   return d.toISOString().slice(0, 10);
 }
 
-function monthlyUsage(db, orgId, type) {
-  const row = db.prepare(`
+async function monthlyUsage(db, orgId, type) {
+  const row = await db.get(`
     SELECT COALESCE(SUM(count), 0) AS total
     FROM usage_logs
     WHERE organization_id = ? AND type = ? AND date >= ?
-  `).get(orgId, type, startOfMonth());
-  return row ? row.total : 0;
+  `, [orgId, type, startOfMonth()]);
+  return row ? Number(row.total) : 0;
 }
 
-function recordUsage(db, orgId, type, count) {
-  db.prepare(`
+async function recordUsage(db, orgId, type, count) {
+  await db.run(`
     INSERT INTO usage_logs (organization_id, type, count, date)
     VALUES (?, ?, ?, ?)
-  `).run(orgId, type, count || 1, new Date().toISOString().slice(0, 10));
+  `, [orgId, type, count || 1, new Date().toISOString().slice(0, 10)]);
 }
 
 // Returns the subscription or throws when no plan covers the action.
-function enforceLimit(db, orgId, kind) {
-  const sub = getSubscription(db, orgId);
+async function enforceLimit(db, orgId, kind) {
+  const sub = await getSubscription(db, orgId);
   if (!sub) throw limitError(kind === 'property' ? 'properties' : kind, 0);
 
   if (['expired', 'cancelled'].includes(sub.status)) {
@@ -79,26 +82,28 @@ function enforceLimit(db, orgId, kind) {
   }
 
   if (kind === 'property') {
-    const count = db.prepare(
-      'SELECT COUNT(*) AS count FROM properties WHERE organization_id = ?'
-    ).get(orgId).count;
-    if (sub.property_limit != null && count >= sub.property_limit) {
+    const row = await db.get(
+      'SELECT COUNT(*) AS count FROM properties WHERE organization_id = ?',
+      [orgId]
+    );
+    const count = Number(row ? row.count : 0);
+    if (sub.property_limit != null && count >= Number(sub.property_limit)) {
       throw limitError('properties', sub.property_limit);
     }
     return sub;
   }
 
   if (kind === 'match') {
-    const used = monthlyUsage(db, orgId, 'match');
-    if (sub.monthly_match_limit != null && used >= sub.monthly_match_limit) {
+    const used = await monthlyUsage(db, orgId, 'match');
+    if (sub.monthly_match_limit != null && used >= Number(sub.monthly_match_limit)) {
       throw limitError('matches this month', sub.monthly_match_limit);
     }
     return sub;
   }
 
   if (kind === 'visit') {
-    const used = monthlyUsage(db, orgId, 'visit');
-    if (sub.monthly_visit_limit != null && used >= sub.monthly_visit_limit) {
+    const used = await monthlyUsage(db, orgId, 'visit');
+    if (sub.monthly_visit_limit != null && used >= Number(sub.monthly_visit_limit)) {
       throw limitError('visits this month', sub.monthly_visit_limit);
     }
     return sub;

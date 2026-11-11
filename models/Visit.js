@@ -14,14 +14,13 @@ function generateId() {
   return 'VIS-' + Date.now() + '-' + crypto.randomInt(1000, 9999);
 }
 
-function create(phone, propertyId, message, organizationId) {
+async function create(phone, propertyId, message, organizationId) {
   const id = generateId();
   const createdAt = now();
-  const stmt = db.prepare(`
+  await db.run(`
     INSERT INTO visits (id, phone, property_id, status, message, created_at, organization_id)
     VALUES (@id, @phone, @property_id, @status, @message, @created_at, @organization_id)
-  `);
-  stmt.run({
+  `, {
     id,
     phone,
     property_id: propertyId,
@@ -30,57 +29,61 @@ function create(phone, propertyId, message, organizationId) {
     created_at: createdAt,
     organization_id: organizationId || '',
   });
-  return get(id);
+  return await get(id);
 }
 
-function get(id, organizationId) {
+async function get(id, organizationId) {
   if (organizationId) {
-    return db.prepare(
-      'SELECT * FROM visits WHERE id = @id AND organization_id = @organizationId'
-    ).get({ id, organizationId });
+    return db.get(
+      'SELECT * FROM visits WHERE id = @id AND organization_id = @organizationId',
+      { id, organizationId }
+    );
   }
-  return db.prepare('SELECT * FROM visits WHERE id = @id').get({ id: id });
+  return db.get('SELECT * FROM visits WHERE id = @id', { id: id });
 }
 
-function getAll(organizationId) {
+async function getAll(organizationId) {
   if (organizationId) {
-    return db.prepare(
-      'SELECT * FROM visits WHERE organization_id = ? ORDER BY created_at DESC'
-    ).all(organizationId);
+    return db.all(
+      'SELECT * FROM visits WHERE organization_id = ? ORDER BY created_at DESC',
+      [organizationId]
+    );
   }
-  return db.prepare('SELECT * FROM visits ORDER BY created_at DESC').all();
+  return db.all('SELECT * FROM visits ORDER BY created_at DESC');
 }
 
-function getForPhone(phone, organizationId) {
+async function getForPhone(phone, organizationId) {
   if (organizationId) {
-    return db.prepare(
-      'SELECT * FROM visits WHERE phone = @phone AND organization_id = @organizationId ORDER BY created_at DESC'
-    ).all({ phone, organizationId });
+    return db.all(
+      'SELECT * FROM visits WHERE phone = @phone AND organization_id = @organizationId ORDER BY created_at DESC',
+      { phone, organizationId }
+    );
   }
-  return db.prepare('SELECT * FROM visits WHERE phone = @phone ORDER BY created_at DESC').all({ phone: phone });
+  return db.all('SELECT * FROM visits WHERE phone = @phone ORDER BY created_at DESC', { phone: phone });
 }
 
-function setStatus(id, status, organizationId) {
+async function setStatus(id, status, organizationId) {
   if (organizationId) {
-    db.prepare(
-      'UPDATE visits SET status = @status WHERE id = @id AND organization_id = @organizationId'
-    ).run({ status, id, organizationId });
+    await db.run(
+      'UPDATE visits SET status = @status WHERE id = @id AND organization_id = @organizationId',
+      { status, id, organizationId }
+    );
   } else {
-    db.prepare('UPDATE visits SET status = @status WHERE id = @id').run({ status: status, id: id });
+    await db.run('UPDATE visits SET status = @status WHERE id = @id', { status: status, id: id });
   }
-  return get(id, organizationId);
+  return await get(id, organizationId);
 }
 
-function setVisitDetails(id, visitDate, visitTime, organizationId) {
+async function setVisitDetails(id, visitDate, visitTime, organizationId) {
   if (organizationId) {
-    db.prepare(
-      'UPDATE visits SET visit_date = @visit_date, visit_time = @visit_time WHERE id = @id AND organization_id = @organizationId'
-    ).run({ visit_date: visitDate, visit_time: visitTime, id, organizationId });
+    await db.run(
+      'UPDATE visits SET visit_date = @visit_date, visit_time = @visit_time WHERE id = @id AND organization_id = @organizationId',
+      { visit_date: visitDate, visit_time: visitTime, id, organizationId }
+    );
   } else {
-    db.prepare('UPDATE visits SET visit_date = @visit_date, visit_time = @visit_time WHERE id = @id')
-      .run({ visit_date: visitDate, visit_time: visitTime, id: id });
+    await db.run('UPDATE visits SET visit_date = @visit_date, visit_time = @visit_time WHERE id = @id', { visit_date: visitDate, visit_time: visitTime, id: id });
   }
-  return get(id, organizationId);
+  return await get(id, organizationId);
 }
 
 module.exports = { create, get, getAll, getForPhone, setStatus, setVisitDetails, setDatabase };

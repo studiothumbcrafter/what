@@ -5,14 +5,11 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /health
-    # Render disks require a paid instance. Without one, data resets on deploy.
-    disk:
-      name: smartrent-data
-      mountPath: /var/data
-      sizeGB: 1
+    # Data lives in Supabase Postgres (DATABASE_URL). Uploaded photos/videos
+    # still use local disk, which is ephemeral on the free plan.
     envVars:
-      - key: DATA_DIR
-        value: /var/data
+      - key: DATABASE_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: SUPABASE_URL

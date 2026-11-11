@@ -27,6 +27,7 @@ function setDatabase(db) {
   Property.setDatabase(db);
   Match.setDatabase(db);
   Media.setDatabase(db);
+  Visit.setDatabase(db);
   dbRef = db;
 }
 
@@ -86,10 +87,10 @@ function init() {
     const text = msg.body || '';
 
     // Check whitelist — only allowed contacts can use the rental agent
-    const allowed = db.prepare('SELECT 1 FROM allowed_contacts WHERE phone = @phone').get({ phone });
+    const allowed = await dbRef.get('SELECT 1 FROM allowed_contacts WHERE phone = @phone', { phone });
     if (!allowed) {
       await sendText(phone, "Sorry, this rental assistant is for authorized contacts only. Please contact the owner to be added to the list.");
-      Customer.logMessage(phone, 'assistant', "Sorry, this rental assistant is for authorized contacts only. Please contact the owner to be added to the list.");
+      await Customer.logMessage(phone, 'assistant', "Sorry, this rental assistant is for authorized contacts only. Please contact the owner to be added to the list.");
       return;
     }
 
@@ -158,17 +159,17 @@ function questionFor(field) {
 }
 
 async function handleMessage(phone, text, msg) {
-  Customer.logMessage(phone, 'customer', text);
-  Customer.upsert(phone);
+  await Customer.logMessage(phone, 'customer', text);
+  await Customer.upsert(phone);
 
-  const conv = Customer.getConversation(phone, 2);
+  const conv = await Customer.getConversation(phone, 2);
   const isNewCustomer = conv.length <= 1;
 
   // Send welcome message to new customers
   if (isNewCustomer) {
     const welcome = "Hello! 👋 Welcome to SmartRent AI. I can help you find a rental home. Tell me what you're looking for — for example: '2BHK under ₹12,000 in Mumbai'. What's your maximum monthly budget?";
     await sendText(phone, welcome);
-    Customer.logMessage(phone, 'assistant', welcome);
+    await Customer.logMessage(phone, 'assistant', welcome);
   }
 
   const trimmed = text.trim();
@@ -177,11 +178,11 @@ async function handleMessage(phone, text, msg) {
   // If customer is confirming a pending visit ("yes", "ok", "confirm")
   if (pendingVisits[phone] && /^(yes|ok|confirm|sure|y)$/i.test(trimmed)) {
     const p = pendingVisits[phone];
-    const v = Visit.create(phone, p.propertyId, 'Customer booked visit via WhatsApp');
+    await Visit.create(phone, p.propertyId, 'Customer booked visit via WhatsApp');
     delete pendingVisits[phone];
     const reply = `✅ Visit booked for *${p.propertyTitle}*!\n\nRent: ₹${p.rent}/month\nLocation: ${p.location}\n\nI’ll confirm the visit date & time with you shortly.`;
     await sendText(phone, reply);
-    Customer.logMessage(phone, 'assistant', reply);
+    await Customer.logMessage(phone, 'assistant', reply);
     return;
   }
 
@@ -190,16 +191,16 @@ async function handleMessage(phone, text, msg) {
     delete pendingVisits[phone];
     const reply = 'Okay, visit cancelled. Let me know if you want to see other properties.';
     await sendText(phone, reply);
-    Customer.logMessage(phone, 'assistant', reply);
+    await Customer.logMessage(phone, 'assistant', reply);
     return;
   }
 
   // --- Handle property number reply (e.g., "1", "2", "3") ---
   const numMatch = trimmed.match(/^(\d+)$/);
-  if (numMatch && !missingMandatory(Customer.getRequirements(phone) || {})) {
+  if (numMatch && !missingMandatory((await Customer.getRequirements(phone)) || {})) {
     const choice = parseInt(numMatch[1]);
     // Get recent matches for this customer
-    const shown = Match.getForPhone(phone, 10);
+    const shown = await Match.getForPhone(phone, 10);
     const prop = shown[choice - 1];
     if (prop) {
       pendingVisits[phone] = {
@@ -210,27 +211,27 @@ async function handleMessage(phone, text, msg) {
       };
       const reply = `Shall I book a visit for *${prop.title}*?\n₹${prop.rent}/month • ${prop.location}\nReply "yes" to confirm or "no" to cancel.`;
       await sendText(phone, reply);
-      Customer.logMessage(phone, 'assistant', reply);
+      await Customer.logMessage(phone, 'assistant', reply);
       return;
     }
   }
 
   // --- Handle "visit" / "book" keyword ---
   if (/visit|book|schedule/i.test(trimmed)) {
-    const shown = Match.getForPhone(phone, 10);
+    const shown = await Match.getForPhone(phone, 10);
     if (shown.length === 0) {
       await sendText(phone, "I haven’t shown you any properties yet. Tell me your requirements first!");
-      Customer.logMessage(phone, 'assistant', "I haven’t shown you any properties yet. Tell me your requirements first!");
+      await Customer.logMessage(phone, 'assistant', "I haven’t shown you any properties yet. Tell me your requirements first!");
       return;
     }
     const list = shown.map((p, i) => `${i + 1}. ${p.title} — ₹${p.rent}/month • ${p.location}`).join('\n');
     const reply = `Which property would you like to visit? Reply with the number:\n\n${list}`;
     await sendText(phone, reply);
-    Customer.logMessage(phone, 'assistant', reply);
+    await Customer.logMessage(phone, 'assistant', reply);
     return;
   }
 
-  const existing = Customer.getRequirements(phone) || {};
+  const existing = (await Customer.getRequirements(phone)) || {};
   const parsed = parse(text);
 
   // Merge: new parsed values override, but keep existing for fields not mentioned
@@ -243,21 +244,21 @@ async function handleMessage(phone, text, msg) {
   // Detect budget flexibility language
   if (/flex|negotiable|can increase|stretch/.test(text.toLowerCase())) merged.flexibility = 1;
 
-  Customer.updateRequirements(phone, merged);
+  await Customer.updateRequirements(phone, merged);
 
   const missing = missingMandatory(merged);
 
   if (missing) {
     // Ask only the next missing question
-    Customer.setState(phone, 'collecting');
+    await Customer.setState(phone, 'collecting');
     const reply = 'I’d love to help you find a home. ' + questionFor(missing);
     await sendText(phone, reply);
-    Customer.logMessage(phone, 'assistant', reply);
+    await Customer.logMessage(phone, 'assistant', reply);
     return;
   }
 
   // Enough info — run matching
-  Customer.setState(phone, 'matching');
+  await Customer.setState(phone, 'matching');
   const results = match(phone, merged);
   await sendMatches(phone, results, merged);
 }
@@ -267,22 +268,22 @@ async function sendMatches(phone, results, requirements) {
     const flexReq = requirements.flexibility === 1 ? '' : ' Try allowing a flexible budget.';
     const reply = "Sorry, I couldn't find any available properties matching your requirements." + flexReq + ' Would you like to relax one requirement (budget, location, or bedrooms)?';
     await sendText(phone, reply);
-    Customer.logMessage(phone, 'assistant', reply);
+    await Customer.logMessage(phone, 'assistant', reply);
     return;
   }
 
-  const recorded = recordMatches(phone, results);
+  recordMatches(phone, results);
 
   // Intro line
   let intro = 'Here are the best matching properties:';
   if (results.length === 1) intro = 'I found one matching property:';
   await sendText(phone, intro);
-  Customer.logMessage(phone, 'assistant', intro);
+  await Customer.logMessage(phone, 'assistant', intro);
 
   for (let i = 0; i < results.length; i++) {
     const m = results[i];
     const p = m.property;
-    const media = Media.getByProperty(p.id);
+    const media = await Media.getByProperty(p.id);
     const photos = media.filter(x => x.type === 'photo');
 
     let msgText = `*${i + 1}. ${p.title}*\n`;
@@ -296,7 +297,7 @@ async function sendMatches(phone, results, requirements) {
 
     // Send text
     await sendText(phone, msgText);
-    Customer.logMessage(phone, 'assistant', msgText);
+    await Customer.logMessage(phone, 'assistant', msgText);
 
     // Send photos (up to 3 genuine photos)
     for (let j = 0; j < Math.min(photos.length, 3); j++) {

@@ -14,18 +14,17 @@ function generateId() {
   return 'MSG-' + Date.now() + '-' + crypto.randomInt(1000, 9999);
 }
 
-function upsert(phone, name) {
-  const existing = get(phone);
+async function upsert(phone, name) {
+  const existing = await get(phone);
   const timestamp = now();
   if (existing) {
-    db.prepare('UPDATE customers SET updated_at = @updated_at, name = COALESCE(@name, name) WHERE phone = @phone')
-      .run({ updated_at: timestamp, name: name, phone: phone });
-    return get(phone);
+    await db.run('UPDATE customers SET updated_at = @updated_at, name = COALESCE(@name, name) WHERE phone = @phone', { updated_at: timestamp, name: name, phone: phone });
+    return await get(phone);
   }
-  db.prepare(`
+  await db.run(`
     INSERT INTO customers (phone, name, requirements, state, created_at, updated_at)
     VALUES (@phone, @name, @requirements, @state, @created_at, @updated_at)
-  `).run({
+  `, {
     phone: phone,
     name: name || null,
     requirements: null,
@@ -33,56 +32,55 @@ function upsert(phone, name) {
     created_at: timestamp,
     updated_at: timestamp,
   });
-  return get(phone);
+  return await get(phone);
 }
 
-function get(phone) {
-  const row = db.prepare('SELECT * FROM customers WHERE phone = @phone').get({ phone: phone });
+async function get(phone) {
+  const row = await db.get('SELECT * FROM customers WHERE phone = @phone', { phone: phone });
   if (row && row.requirements) {
     try { row.requirements = JSON.parse(row.requirements); } catch (e) { row.requirements = {}; }
   }
   return row;
 }
 
-function updateRequirements(phone, requirements) {
-  const row = get(phone);
+async function updateRequirements(phone, requirements) {
+  const row = await get(phone);
   if (!row) return null;
   const json = typeof requirements === 'string' ? requirements : JSON.stringify(requirements);
-  db.prepare('UPDATE customers SET requirements = @requirements, state = @state, updated_at = @updated_at WHERE phone = @phone')
-    .run({ requirements: json, state: 'collecting', updated_at: now(), phone: phone });
-  return get(phone);
+  await db.run('UPDATE customers SET requirements = @requirements, state = @state, updated_at = @updated_at WHERE phone = @phone', { requirements: json, state: 'collecting', updated_at: now(), phone: phone });
+  return await get(phone);
 }
 
-function getRequirements(phone) {
-  const row = get(phone);
+async function getRequirements(phone) {
+  const row = await get(phone);
   return row ? row.requirements : null;
 }
 
-function setState(phone, state) {
-  db.prepare('UPDATE customers SET state = @state, updated_at = @updated_at WHERE phone = @phone')
-    .run({ state: state, updated_at: now(), phone: phone });
-  return get(phone);
+async function setState(phone, state) {
+  await db.run('UPDATE customers SET state = @state, updated_at = @updated_at WHERE phone = @phone', { state: state, updated_at: now(), phone: phone });
+  return await get(phone);
 }
 
-function getState(phone) {
-  const row = get(phone);
+async function getState(phone) {
+  const row = await get(phone);
   return row ? row.state : null;
 }
 
-function logMessage(phone, role, message) {
+async function logMessage(phone, role, message) {
   const id = generateId();
   const timestamp = now();
-  db.prepare(`
+  await db.run(`
     INSERT INTO conversations (id, phone, role, message, created_at)
     VALUES (@id, @phone, @role, @message, @created_at)
-  `).run({ id: id, phone: phone, role: role, message: message, created_at: timestamp });
+  `, { id: id, phone: phone, role: role, message: message, created_at: timestamp });
   return { id, phone, role, message, created_at: timestamp };
 }
 
-function getConversation(phone, limit) {
-  return db.prepare(
-    'SELECT * FROM conversations WHERE phone = @phone ORDER BY created_at DESC LIMIT @limit'
-  ).all({ phone: phone, limit: limit || 50 });
+async function getConversation(phone, limit) {
+  return db.all(
+    'SELECT * FROM conversations WHERE phone = @phone ORDER BY created_at DESC LIMIT @limit',
+    { phone: phone, limit: limit || 50 }
+  );
 }
 
 module.exports = { upsert, get, updateRequirements, getRequirements, setState, getState, logMessage, getConversation, setDatabase };
