@@ -1,4 +1,4 @@
-// Subscription helpers: activation and plan-limit enforcement (Stage 5).
+// Subscription helpers: trials and plan-limit enforcement (Stage 5).
 
 function getSubscription(db, orgId) {
   const row = db.prepare(`
@@ -33,59 +33,6 @@ function ensureTrialSubscription(db, orgId, days) {
        trial_start, trial_end, created_at)
     VALUES (?, ?, 'starter', 'plan-starter', 'trialing', 49900, 'INR', datetime('now'), ?, datetime('now'))
   `).run('sub-' + orgId, orgId, trialEnd);
-
-  return getSubscription(db, orgId);
-}
-
-function addMonth(from) {
-  const date = from ? new Date(from) : new Date();
-  date.setUTCMonth(date.getUTCMonth() + 1);
-  return date.toISOString();
-}
-
-function activateSubscription(db, orgId, plan, payment) {
-  if (!orgId) throw new Error('organization_id is required');
-  if (!plan) throw new Error('plan is required');
-
-  const renewal = addMonth();
-
-  db.prepare(`
-    INSERT INTO subscriptions
-      (id, organization_id, plan, plan_id, status, price_paise, currency,
-       renewal_date, payment_method, created_at)
-    VALUES
-      (?, ?, ?, ?, 'active', ?, 'INR', ?, 'razorpay', datetime('now'))
-    ON CONFLICT(organization_id) DO UPDATE SET
-      plan = excluded.plan,
-      plan_id = excluded.plan_id,
-      status = 'active',
-      price_paise = excluded.price_paise,
-      currency = excluded.currency,
-      renewal_date = excluded.renewal_date,
-      payment_method = excluded.payment_method
-  `).run(
-    'sub-' + orgId,
-    orgId,
-    plan.name,
-    plan.id,
-    plan.price_paise,
-    renewal
-  );
-
-  db.prepare(`
-    INSERT INTO audit_logs (organization_id, action, target_table, target_id, new_values)
-    VALUES (?, 'subscription.activated', 'subscriptions', ?, ?)
-  `).run(
-    orgId,
-    'sub-' + orgId,
-    JSON.stringify({
-      plan_id: plan.id,
-      plan_name: plan.name,
-      price_paise: plan.price_paise,
-      payment_id: payment && payment.paymentId,
-      order_id: payment && payment.orderId,
-    })
-  );
 
   return getSubscription(db, orgId);
 }
@@ -163,9 +110,7 @@ function enforceLimit(db, orgId, kind) {
 module.exports = {
   getSubscription,
   ensureTrialSubscription,
-  activateSubscription,
   enforceLimit,
   recordUsage,
   monthlyUsage,
-  addMonth,
 };

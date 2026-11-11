@@ -7,13 +7,7 @@ const Property = require('../models/Property');
 const Media = require('../models/Media');
 const whatsapp = require('../services/whatsapp');
 const Visit = require('../models/Visit');
-const {
-  createCheckoutSession,
-  fetchOrder,
-  verifyPaymentSignature,
-  findPlan,
-} = require('../services/payment');
-const { activateSubscription, enforceLimit } = require('../services/subscription');
+const { enforceLimit } = require('../services/subscription');
 const { authenticateToken } = require('../services/auth');
 const router = express.Router();
 
@@ -292,69 +286,6 @@ router.get('/whatsapp/status', function (req, res) {
 router.post('/whatsapp/disconnect', async function (req, res) {
   await whatsapp.disconnect();
   res.json({ ok: true, message: 'WhatsApp disconnected' });
-});
-
-// Create a Razorpay order for a plan upgrade
-router.post('/subscription/checkout', async function (req, res) {
-  const planId = (req.body || {}).plan_id;
-  if (!planId) return res.status(400).json({ error: 'plan_id is required' });
-  if (!req.user.org_id) return res.status(403).json({ error: 'Token is missing organization context' });
-
-  try {
-    const session = await createCheckoutSession(req.app.locals.db, planId, req.user.org_id);
-    res.json(session);
-  } catch (err) {
-    const status = err.code === 'PLAN_NOT_FOUND' ? 404
-      : err.code === 'PAYMENT_NOT_CONFIGURED' ? 503
-      : 502;
-    res.status(status).json({ error: err.message });
-  }
-});
-
-// Verify a Razorpay payment and activate the plan
-router.post('/subscription/payment/verify', async function (req, res) {
-  const d = req.app.locals.db;
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
-
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-    return res.status(400).json({ error: 'razorpay_order_id, razorpay_payment_id and razorpay_signature are required' });
-  }
-  if (!req.user.org_id) {
-    return res.status(403).json({ error: 'Token is missing organization context' });
-  }
-
-  let valid = false;
-  try {
-    valid = verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
-  } catch (err) {
-    return res.status(503).json({ error: err.message });
-  }
-  if (!valid) {
-    return res.status(400).json({ error: 'Invalid payment signature' });
-  }
-
-  try {
-    const order = await fetchOrder(razorpay_order_id);
-    const notes = order.notes || {};
-    const plan = findPlan(d, notes.plan_id);
-
-    if (!plan) return res.status(400).json({ error: 'Order does not reference a valid plan' });
-    if (notes.organization_id !== req.user.org_id) {
-      return res.status(403).json({ error: 'Order belongs to another organization' });
-    }
-    if (Number(order.amount) !== plan.price_paise) {
-      return res.status(400).json({ error: 'Paid amount does not match the plan price' });
-    }
-
-    const subscription = activateSubscription(d, req.user.org_id, plan, {
-      paymentId: razorpay_payment_id,
-      orderId: razorpay_order_id,
-    });
-
-    res.json({ ok: true, subscription });
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
 });
 
 // Subscription status

@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Build subscription and payment system for SmartRent AI. Owners subscribe to plans (Starter ₹499/mo, Professional ₹999/mo, Business ₹1,999/mo), pay via Razorpay, and plan limits are enforced on properties, matches, and visits.
+**Goal:** Build the subscription system for SmartRent AI. Owners are placed on plans (Starter ₹499/mo, Professional ₹999/mo, Business ₹1,999/mo), and plan limits are enforced on properties, matches, and visits. Online payment is deferred.
 
-**Architecture:** Express routes for payment creation/webhook, SQLite database for subscriptions/plans/usage_logs, JWT auth for owner isolation.
+> **Status (11 Nov 2026):** Tasks 1, 2, and 6 are implemented. Tasks 3–5 (Razorpay checkout, verification, webhook) are deferred and their code was removed at the user's request.
 
-**Tech Stack:** Node.js, Express, SQLite, Razorpay API, JWT auth (existing)
+**Architecture:** Express routes for subscription status and limits, SQLite database for subscriptions/plans/usage_logs, JWT auth for owner isolation.
+
+**Tech Stack:** Node.js, Express, SQLite, JWT auth (existing). Payment gateway deferred.
 
 **Spec:** `docs/superpowers/specs/2026-11-10-rentflow-ai-design.md` — Section 15 (Subscription System), Section 16 (Database structure)
 
@@ -85,7 +87,7 @@ expect(res.body.status).toBeDefined();
 
 ---
 
-### Task 3: Razorpay payment order creation
+### Task 3: Razorpay payment order creation — DEFERRED
 
 **Files:**
 - Create: `services/payment.js`
@@ -96,7 +98,7 @@ expect(res.body.status).toBeDefined();
 - Consumes: RAZORPAY_KEY_ID, RAZORPAY_SECRET
 - Produces: order_id, amount, currency, currency_code
 
-- [x] **Step 1: Write failing test** — `tests/payment.test.js`
+- [ ] **Step 1: Write failing test** — `tests/payment.test.js`
 ```js
 const { createCheckoutSession } = require('../services/payment');
 const result = await createCheckoutSession('professional', 'org-1');
@@ -104,14 +106,14 @@ expect(result.orderId).toBeDefined();
 expect(result.amount).toBe(99900);
 expect(result.currency).toBe('INR');
 ```
-- [x] **Step 2: Run test — expect FAIL** (createCheckoutSession not defined)
-- [x] **Step 3: Implement createCheckoutSession** — Razorpay order creation (mocked in test)
-- [x] **Step 4: Run test — expect PASS**
-- [x] **Step 5: Commit**
+- [ ] **Step 2: Run test — expect FAIL** (createCheckoutSession not defined)
+- [ ] **Step 3: Implement createCheckoutSession** — Razorpay order creation (mocked in test)
+- [ ] **Step 4: Run test — expect PASS**
+- [ ] **Step 5: Commit**
 
 ---
 
-### Task 4: Payment verification endpoint
+### Task 4: Payment verification endpoint — DEFERRED
 
 **Files:**
 - Modify: `routes/owner.js` (add POST /api/subscription/payment/verify)
@@ -122,7 +124,7 @@ expect(result.currency).toBe('INR');
 - Consumes: `req.user.org_id`, razorpay_payment_id, razorpay_order_id, razorpay_signature
 - Produces: subscription activated, usage_logs updated
 
-- [x] **Step 1: Write failing test** — `tests/payment.test.js`
+- [ ] **Step 1: Write failing test** — `tests/payment.test.js`
 ```js
 const res = await request(app).post('/api/subscription/payment/verify').send({
   razorpay_payment_id: 'pay_test',
@@ -132,14 +134,14 @@ const res = await request(app).post('/api/subscription/payment/verify').send({
 expect(res.status).toBe(200);
 expect(res.body.subscription.status).toBe('active');
 ```
-- [x] **Step 2: Run test — expect FAIL**
-- [x] **Step 3: Implement payment verification** — verify Razorpay signature, update subscription
-- [x] **Step 4: Run test — expect PASS**
-- [x] **Step 5: Commit**
+- [ ] **Step 2: Run test — expect FAIL**
+- [ ] **Step 3: Implement payment verification** — verify Razorpay signature, update subscription
+- [ ] **Step 4: Run test — expect PASS**
+- [ ] **Step 5: Commit**
 
 ---
 
-### Task 5: Payment webhook endpoint
+### Task 5: Payment webhook endpoint — DEFERRED
 
 **Files:**
 - Modify: `server.js` (add POST /api/webhook/payment)
@@ -150,15 +152,15 @@ expect(res.body.subscription.status).toBe('active');
 - Consumes: Razorpay webhook payload + signature header
 - Produces: subscription status updated, audit log written
 
-- [x] **Step 1: Write failing test** — `tests/webhook.test.js`
+- [ ] **Step 1: Write failing test** — `tests/webhook.test.js`
 ```js
 const res = await request(app).post('/api/webhook/payment').send(eventPayload).set('X-Razorpay-Signature', sig);
 expect(res.status).toBe(200);
 ```
-- [x] **Step 2: Run test — expect FAIL**
-- [x] **Step 3: Implement webhook handler** — verify signature, idempotency check, update subscription
-- [x] **Step 4: Run test — expect PASS**
-- [x] **Step 5: Commit**
+- [ ] **Step 2: Run test — expect FAIL**
+- [ ] **Step 3: Implement webhook handler** — verify signature, idempotency check, update subscription
+- [ ] **Step 4: Run test — expect PASS**
+- [ ] **Step 5: Commit**
 
 ---
 
@@ -193,7 +195,7 @@ expect(res.body.error).toContain('limit');
 **1. Spec coverage:**
 - Subscription plans (Starter/Professional/Business) ✓ Task 1
 - Subscription status tracking ✓ Task 2
-- Payment integration (Razorpay) ✓ Task 3
+- Payment integration (Razorpay) — deferred (Task 3)
 - Payment webhook handling ✓ Task 4
 - Plan limits enforcement ✓ Task 5
 

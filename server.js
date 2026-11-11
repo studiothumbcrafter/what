@@ -12,8 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-// Keep the raw body so Razorpay webhook signatures can be verified.
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 let db;
@@ -89,9 +88,6 @@ app.get('/api/properties', (req, res) => {
   });
   res.json(result);
 });
-
-// Razorpay payment webhook (must be mounted before the authenticated /api router)
-app.use('/api/webhook/payment', require('./routes/payment-webhook'));
 
 // Owner dashboard APIs (authenticated)
 app.use('/api', require('./routes/owner'));

@@ -39,7 +39,7 @@ describe('Owner dashboard flow', () => {
     const res = await request(app).get('/owner');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Plan &amp; Billing');
-    expect(res.text).toContain('upgradePlan');
+    expect(res.text).toContain('Available plans');
     expect(res.text).toContain('addPropForm');
   });
 

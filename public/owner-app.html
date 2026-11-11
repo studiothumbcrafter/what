@@ -559,7 +559,7 @@ async function loadPlan() {
         usageRow('Visits this month', usage.visits || 0, data.monthly_visit_limit);
     }
 
-    html += '<div style="font-size:0.8rem;font-weight:700;color:#475569;margin:18px 0 10px;">Choose a plan</div>';
+    html += '<div style="font-size:0.8rem;font-weight:700;color:#475569;margin:18px 0 10px;">Available plans</div>';
     html += PLAN_OPTIONS.map(function (p) {
       const isCurrent = current === p.id || current === 'plan-' + p.id;
       return '<div class="plan-option' + (isCurrent ? ' current' : '') + '">' +
@@ -567,75 +567,13 @@ async function loadPlan() {
         '<div class="plan-perks">' + p.properties + ' properties • ' + p.matches + ' matches • ' + p.visits + ' visits / month</div></div>' +
         '<div style="text-align:right;"><div class="plan-price">' + rupees(p.price) + '</div>' +
         '<div style="font-size:0.7rem;color:#94a3b8;">per month</div>' +
-        (isCurrent ? '' : '<button class="btn btn-primary btn-sm" style="margin-top:6px;" onclick="upgradePlan(\'' + p.id + '\')">Choose</button>') +
         '</div></div>';
     }).join('');
+    html += '<p style="font-size:0.78rem;color:#94a3b8;margin-top:8px;">Plan changes are not available in the app yet.</p>';
 
     body.innerHTML = html;
   } catch (err) {
     body.innerHTML = '<div class="alert alert-error">' + escapeHtml(err.message) + '</div>';
-  }
-}
-
-function loadRazorpay() {
-  return new Promise(function (resolve, reject) {
-    if (window.Razorpay) return resolve();
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = function () { resolve(); };
-    script.onerror = function () { reject(new Error('Could not load the payment window')); };
-    document.body.appendChild(script);
-  });
-}
-
-async function upgradePlan(planId) {
-  try {
-    const res = await fetch(API + '/api/subscription/checkout', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ plan_id: planId }),
-    });
-    const order = await res.json();
-    if (!res.ok) throw new Error(order.error || 'Could not start payment');
-
-    await loadRazorpay();
-    const rzp = new Razorpay({
-      key: order.keyId,
-      amount: order.amount,
-      currency: order.currency,
-      name: 'SmartRent AI',
-      description: order.planName + ' plan',
-      order_id: order.orderId,
-      theme: { color: '#4f46e5' },
-      handler: async function (payment) {
-        try {
-          const verifyRes = await fetch(API + '/api/subscription/payment/verify', {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify({
-              razorpay_order_id: payment.razorpay_order_id,
-              razorpay_payment_id: payment.razorpay_payment_id,
-              razorpay_signature: payment.razorpay_signature,
-            }),
-          });
-          const verified = await verifyRes.json();
-          if (!verifyRes.ok) throw new Error(verified.error || 'Payment verification failed');
-          toast('Plan activated');
-          loadPlan();
-        } catch (err) {
-          toast(err.message, 'error');
-        }
-      },
-      modal: {
-        ondismiss: function () { toast('Payment cancelled'); },
-      },
-    });
-    rzp.on('payment.failed', function (resp) {
-      toast((resp.error && resp.error.description) || 'Payment failed', 'error');
-    });
-    rzp.open();
-  } catch (err) {
-    toast(err.message, 'error');
   }
 }
 

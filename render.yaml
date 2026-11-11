@@ -11,12 +11,6 @@ services:
         generateValue: true
       - key: SUPABASE_JWT_SECRET
         sync: false
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
       - key: OWNER_USERNAME
         value: admin
       - key: OWNER_PASSWORD
