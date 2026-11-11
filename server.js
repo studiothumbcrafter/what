@@ -4,6 +4,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, getJwtSecret } = require('./services/auth');
 const { ensureOwnerOrg, backfillOrganization } = require('./services/org');
+const { dataDir } = require('./services/storage');
 const { init } = require('./db');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
@@ -213,7 +214,7 @@ function exportPropertiesToExcel(organizationId) {
         created_at: p.created_at || '',
       });
     });
-    const excelPath = path.join(__dirname, 'data', 'properties.xlsx');
+    const excelPath = path.join(dataDir(), 'properties.xlsx');
     workbook.xlsx.writeFile(excelPath);
     console.log('[excel] Properties exported to ' + excelPath);
   } catch (err) {
@@ -230,7 +231,7 @@ console.log('[whatsapp] Skipped (no Chrome display in this environment)');
 app.get('/api/properties/export', authenticateToken, (req, res) => {
   try {
     exportPropertiesToExcel(req.user.org_id);
-    res.download(path.join(__dirname, 'data', 'properties.xlsx'), 'properties.xlsx');
+    res.download(path.join(dataDir(), 'properties.xlsx'), 'properties.xlsx');
   } catch (err) {
     res.status(500).json({ error: 'Export failed: ' + err.message });
   }

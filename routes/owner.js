@@ -15,9 +15,8 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Ensure upload dirs exist
-const uploadsRoot = process.env.DATA_DIR
-  ? path.join(process.env.DATA_DIR, 'uploads')
-  : path.join(__dirname, '..', 'uploads');
+const { dataDir, uploadsDir } = require('../services/storage');
+const uploadsRoot = uploadsDir();
 const photoDir = path.join(uploadsRoot, 'photos');
 const videoDir = path.join(uploadsRoot, 'videos');
 fs.mkdirSync(photoDir, { recursive: true });
@@ -139,7 +138,7 @@ function exportPropertiesToExcel(db, organizationId) {
         created_at: p.created_at || '',
       });
     });
-    const excelPath = path.join(__dirname, '..', 'data', 'properties.xlsx');
+    const excelPath = path.join(dataDir(), 'properties.xlsx');
     workbook.xlsx.writeFile(excelPath);
   } catch (err) {
     console.warn('[excel] Export failed:', err.message);

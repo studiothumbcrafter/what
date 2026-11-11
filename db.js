@@ -1,11 +1,11 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { dataDir } = require('./services/storage');
 
 function dbPath() {
   if (process.env.SMARTRENT_TEST_DB) return process.env.SMARTRENT_TEST_DB;
-  const dir = process.env.DATA_DIR || path.join(__dirname, 'data');
-  return path.join(dir, 'smartrent.sqlite');
+  return path.join(dataDir(), 'smartrent.sqlite');
 }
 
 function init() {
