@@ -1,25 +1,53 @@
 const crypto = require('crypto');
-const { verifyWebhookSignature, parseWebhookMessage } = require('../services/whatsapp-cloud');
+
+// Mock https module before requiring whatsapp-cloud
+jest.mock('https', () => {
+  return {
+    request: jest.fn((options, callback) => {
+      if (!options.path || options.path.includes('//')) {
+        const res = { statusCode: 400, on: (event, cb) => { if (event === 'data') cb(JSON.stringify({ error: { message: 'Invalid request' } })); if (event === 'end') cb(); } };
+        setTimeout(() => callback(res), 10);
+        return { write: jest.fn(), end: jest.fn(), on: jest.fn() };
+      }
+      const res = {
+        statusCode: 200,
+        on: (event, cb) => {
+          if (event === 'data') cb(JSON.stringify({ messages: [{ id: 'msg-123' }] }));
+          if (event === 'end') cb();
+        },
+      };
+      setTimeout(() => callback(res), 10);
+      return {
+        write: jest.fn(),
+        end: jest.fn(),
+        on: jest.fn(),
+      };
+    }),
+  };
+});
+
+const { verifyWebhookSignature, parseWebhookMessage, sendMessage } = require('../services/whatsapp-cloud');
+
+process.env.SUPABASE_ACCESS_TOKEN = 'test-supabase-secret';
+process.env.WHATSAPP_ACCESS_TOKEN = 'test-whatsapp-token';
 
 describe('WhatsApp webhook signature verification', () => {
-  const secret = 'test-webhook-secret';
-
   test('verifyWebhookSignature returns true for valid signature', () => {
     const payload = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
-    const signature = 'sha256=' + crypto.createHmac('sha256', secret).update(payload).digest('hex');
-    expect(verifyWebhookSignature(secret, signature, payload)).toBe(true);
+    const signature = 'sha256=' + crypto.createHmac('sha256', 'test-webhook-secret').update(payload).digest('hex');
+    expect(verifyWebhookSignature('test-webhook-secret', signature, payload)).toBe(true);
   });
 
   test('verifyWebhookSignature returns false for invalid signature', () => {
     const payload = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
-    expect(verifyWebhookSignature(secret, 'sha256=invalid', payload)).toBe(false);
+    expect(verifyWebhookSignature('test-webhook-secret', 'sha256=invalid', payload)).toBe(false);
   });
 
   test('verifyWebhookSignature returns false for tampered payload', () => {
     const payload = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
-    const signature = 'sha256=' + crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    const signature = 'sha256=' + crypto.createHmac('sha256', 'test-webhook-secret').update(payload).digest('hex');
     const tampered = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ changed: true }] });
-    expect(verifyWebhookSignature(secret, signature, tampered)).toBe(false);
+    expect(verifyWebhookSignature('test-webhook-secret', signature, tampered)).toBe(false);
   });
 });
 
@@ -58,5 +86,17 @@ describe('WhatsApp webhook parsing', () => {
   test('parseWebhookMessage returns null for empty payload', () => {
     const msg = parseWebhookMessage({ object: 'whatsapp_business_account', entry: [] });
     expect(msg).toBeNull();
+  });
+});
+
+describe('WhatsApp message sending', () => {
+  test('sendMessage returns messageId on success', async () => {
+    const result = await sendMessage('123456789', '+919876543210', 'Hello');
+    expect(result.messageId).toBeDefined();
+    expect(result.status).toBe('sent');
+  });
+
+  test('sendMessage throws on API error', async () => {
+    await expect(sendMessage('', '+919876543210', 'Hello')).rejects.toThrow();
   });
 });

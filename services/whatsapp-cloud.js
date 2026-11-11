@@ -2,6 +2,7 @@
 // Stage 3: Official WhatsApp Business API integration
 
 const crypto = require('crypto');
+const https = require('https');
 
 /**
  * Verify WhatsApp webhook signature using HMAC-SHA256
@@ -24,8 +25,6 @@ function verifyWebhookSignature(secret, signature, payload) {
   }
   return crypto.timingSafeEqual(sigBuf, expectedBuf);
 }
-
-module.exports = { verifyWebhookSignature, parseWebhookMessage };
 
 /**
  * Parse WhatsApp webhook payload to extract message details
@@ -54,3 +53,69 @@ function parseWebhookMessage(payload) {
 
   return null;
 }
+
+/**
+ * Send WhatsApp message via Cloud API
+ * @param {string} phoneNumberId - WhatsApp Business Phone Number ID
+ * @param {string} to - Recipient phone number
+ * @param {string} text - Message text
+ * @returns {Promise<{messageId: string, status: string}>}
+ */
+function sendMessage(phoneNumberId, to, text) {
+  return new Promise((resolve, reject) => {
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    if (!accessToken) {
+      reject(new Error('WHATSAPP_ACCESS_TOKEN not configured'));
+      return;
+    }
+
+    const data = JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: to,
+      type: 'text',
+      text: { body: text },
+    });
+
+    const options = {
+      hostname: 'graph.facebook.com',
+      port: 443,
+      path: `/v18.0/${phoneNumberId}/messages`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Content-Length': data.length,
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const parsed = JSON.parse(data);
+            resolve({
+              messageId: parsed.messages?.[0]?.id || 'msg-' + Date.now(),
+              status: 'sent',
+            });
+          } catch (e) {
+            resolve({ messageId: 'msg-' + Date.now(), status: 'sent' });
+          }
+        } else {
+          reject(new Error(`WhatsApp API error: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+
+    req.on('error', (e) => {
+      reject(new Error(`WhatsApp API request failed: ${e.message}`));
+    });
+
+    req.write(data);
+    req.end();
+  });
+}
+
+module.exports = { verifyWebhookSignature, parseWebhookMessage, sendMessage };
