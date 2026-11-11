@@ -1,0 +1,29 @@
+{
+  "name": "smartrent-admin",
+  "appId": "com.smartrent.admin",
+  "appName": "SmartRent Admin",
+  "version": "1.0.0",
+  "description": "SmartRent AI - Admin Property Management App",
+  "author": "SmartRent AI",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "android:build": "npm run build && npx cap copy android",
+    "android:open": "npx cap open android",
+    "android:run": "npx cap run android",
+    "android:sync": "npx cap sync android"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/device": "^6.0.0",
+    "@capacitor/network": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "@capacitor/preferences": "^6.0.0",
+    "vite": "^5.0.0"
+  }
+}

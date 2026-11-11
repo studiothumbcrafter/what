@@ -8,3 +8,34 @@ uploads/
 *.DS_Store
 Thumbs.db
 pasted-text.txt
+
+# Local WhatsApp session and runtime caches
+.wwebjs_auth/
+.wwebjs_cache/
+server_output.txt
+
+# Throwaway scripts and fixtures
+test-wa.js
+tests/test-post*.js
+tests/test-prop*.json
+tests/test-rent.json
+
+# Agent tooling state
+.agents/
+.claude/
+.superpowers/
+
+# Mobile app build output and local toolchains
+.idea/
+smartrent-admin-app/gradle-8.0/
+smartrent-admin-app/android/.gradle/
+smartrent-admin-app/android/app/build/
+smartrent-admin-app/android/build/
+smartrent-admin-app/android/local.properties
+smartrent-owner-app/node_modules/
+smartrent-owner-app/gradle-8.0/
+smartrent-owner-app/android/.gradle/
+smartrent-owner-app/android/app/build/
+smartrent-owner-app/android/build/
+smartrent-owner-app/android/local.properties
+smartrent-owner-app/*.zip
