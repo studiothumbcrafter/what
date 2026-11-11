@@ -207,6 +207,39 @@ app.get('/api/properties/export', authenticateToken, (req, res) => {
   }
 });
 
+// WhatsApp webhook endpoint
+app.post('/webhook/whatsapp', (req, res) => {
+  const { verifyWebhookSignature, parseWebhookMessage } = require('./services/whatsapp-cloud');
+  const { init } = require('./db');
+  const db = init();
+
+  const signature = req.headers['x-hub-signature-256'];
+  const payload = req.body;
+
+  // Verify signature
+  const secret = process.env.WHATSAPP_APP_SECRET || 'test-secret';
+  if (!verifyWebhookSignature(secret, signature, JSON.stringify(payload))) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  // Parse message
+  const msg = parseWebhookMessage(payload);
+  if (!msg) {
+    return res.status(200).json({ status: 'no message' });
+  }
+
+  // Route to AI assistant (Stage 1)
+  const { handleMessage } = require('./services/ai-assistant');
+  const reply = handleMessage(msg.phone, msg.text);
+
+  if (reply) {
+    // Send reply via WhatsApp Cloud API (placeholder - full implementation in Task 3)
+    console.log('[whatsapp] Would send to', msg.phone, ':', reply);
+  }
+
+  res.status(200).json({ status: 'ok' });
+});
+
 app.listen(PORT, () => {
   console.log(`[server] SmartRent AI running on http://localhost:${PORT}`);
 });
