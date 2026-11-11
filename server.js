@@ -259,7 +259,8 @@ async function exportPropertiesToExcel(organizationId) {
     await workbook.xlsx.writeFile(excelPath);
     console.log('[excel] Properties exported to ' + excelPath);
   } catch (err) {
-    console.warn('[excel] Export failed:', err.message);
+    console.error('[excel] Export failed:', err.message);
+    throw err;
   }
 }
 
