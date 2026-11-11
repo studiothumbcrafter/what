@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SmartRent AI - Owner App</title>
+<meta name="theme-color" content="#6366f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SmartRent Owner">
+<link rel="manifest" href="/manifest.json">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #f0f4ff 0%, #e9ecef 100%); color: #0f172a; line-height: 1.5; min-height: 100vh; }
+  .app-bar { background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%); color: #fff; padding: 16px 16px 12px; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); border-bottom: 1px solid rgba(255,255,255,0.3); }
+  .app-bar h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.5px; }
+  .app-bar p { font-size: 0.72rem; opacity: 0.85; margin-top: 3px; }
+  .container { padding: 16px 14px; max-width: 520px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 16px; overflow: hidden; border: 1px solid rgba(0,0,0,0.03); }
+  .card-header { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-weight: 700; font-size: 0.95rem; color: #334155; display: flex; justify-content: space-between; align-items: center; }
+  .card-header h2 { font-size: 0.95rem; font-weight: 700; color: #334155; }
+  .card-body { padding: 16px; }
+  .btn { display: inline-block; padding: 10px 18px; border-radius: 10px; font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; width: 100%; margin: 8px 0; text-align: center; transition: all 0.2s ease; text-decoration: none; }
+  .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%); color: #fff; box-shadow: 0 3px 8px rgba(59, 130, 246, 0.35); }
+  .btn-primary:hover { background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%); transform: translateY(-1px); box-shadow: 0 5px 12px rgba(59, 130, 246, 0.45); }
+  .btn-outline { background: #fff; color: #4f46e5; border: 2px solid #4f46e5; }
+  .btn-outline:hover { background: #4f46e5; color: #fff; transform: translateY(-1px); }
+  .btn-success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; box-shadow: 0 3px 8px rgba(16, 185, 129, 0.35); }
+  .btn-success:hover { background: linear-gradient(135deg, #059669 0%, #047857 100%); transform: translateY(-1px); }
+  .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; box-shadow: 0 3px 8px rgba(239, 68, 68, 0.35); }
+  .btn-danger:hover { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); transform: translateY(-1px); }
+  .btn-sm { padding: 6px 14px; font-size: 0.82rem; font-weight: 600; width: auto; }
+  .input-group { margin-bottom: 14px; }
+  .input-group label { display: block; font-size: 0.78rem; font-weight: 600; color: #475569; margin-bottom: 5px; letter-spacing: 0.3px; }
+  .input-group input, .input-group select, .input-group textarea { width: 100%; padding: 11px 14px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 0.92rem; font-family: inherit; background: #f8fafc; transition: all 0.2s ease; }
+  .input-group input:focus, .input-group select:focus, .input-group textarea:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); background: #fff; }
+  .whatsapp-section { background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 2px dashed #86efac; border-radius: 14px; padding: 18px; text-align: center; }
+  .qr-img { border: 3px solid #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-width: 240px; margin: 14px auto; display: block; background: #fff; padding: 4px; }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s ease; border: none; }
+  .status-connected { background: #dcfce7; color: #15803d; }
+  .status-disconnected { background: #fee2e2; color: #b91c1c; }
+  .status-waiting { background: #fef3c7; color: #a16207; }
+  .prop-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 14px; background: #fff; transition: all 0.2s ease; }
+  .prop-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); border-color: #cbd5e1; }
+  .prop-title { font-weight: 700; font-size: 0.98rem; color: #0f172a; margin-bottom: 5px; }
+  .prop-meta { font-size: 0.8rem; color: #64748b; margin-bottom: 6px; display: block; }
+  .prop-rent { font-size: 1.2rem; font-weight: 800; color: #4f46e5; display: block; margin-bottom: 10px; }
+  .prop-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .prop-actions .btn { flex: 1; padding: 8px 14px; font-size: 0.85rem; }
+  .visit-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 14px; background: #fff; }
+  .visit-customer { font-weight: 700; color: #0f172a; margin-bottom: 3px; font-size: 0.92rem; }
+  .visit-prop { font-size: 0.88rem; color: #475569; margin-bottom: 4px; }
+  .visit-meta { font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px; }
+  .visit-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .visit-actions .btn { flex: 1; padding: 8px 14px; font-size: 0.82rem; }
+  .empty { text-align: center; padding: 34px 16px; color: #64748b; }
+  .empty h3 { font-size: 1.05rem; color: #334155; margin-bottom: 6px; font-weight: 600; }
+  .empty p { font-size: 0.85rem; color: #94a3b8; }
+  .tab-nav { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
+  .tab-nav button { flex: 1; padding: 12px 8px; border: none; background: transparent; font-size: 0.78rem; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s ease; }
+  .tab-nav button.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+  .tab-nav button:hover { color: #4f46e5; background: #f8fafc; border-radius: 6px; }
+  .file-input { margin-top: 8px; font-size: 0.85rem; color: #64748b; }
+  .alert { padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 0.85rem; font-weight: 600; }
+  .alert-success { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .alert-error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+  .alert-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .footer { padding: 24px 16px; text-align: center; color: #94a3b8; font-size: 0.75rem; border-top: 1px solid #e2e8f0; letter-spacing: 0.4px; }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+  .badge-available { background: #dcfce7; color: #166534; }
+  .badge-rented { background: #fee2e2; color: #dc2626; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; opacity: 0; transition: opacity 0.3s ease; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .toast.show { opacity: 1; }
+  .usage-row { margin-bottom: 10px; }
+  .usage-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #475569; margin-bottom: 4px; }
+  .usage-bar { height: 7px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .usage-fill { height: 100%; background: linear-gradient(90deg, #4f46e5, #2563eb); border-radius: 4px; }
+  .plan-option { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .plan-option.current { border-color: #4f46e5; background: #eef2ff; }
+  .plan-price { font-weight: 800; color: #4f46e5; font-size: 1.05rem; }
+  .plan-perks { font-size: 0.76rem; color: #64748b; margin-top: 3px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app-bar">
+  <h1>SmartRent Owner</h1>
+  <p>Manage Properties • WhatsApp Bot • Visit Requests</p>
+</div>
+
+<div class="container">
+  <!-- WhatsApp Connection Card -->
+  <div class="card">
+    <div class="card-header">
+      <span>WhatsApp Connection</span>
+      <span id="wa-status" class="status-pill status-disconnected" onclick="toggleQR()">Disconnected</span>
+    </div>
+    <div class="card-body">
+      <div class="whatsapp-section" id="qr-section" style="display:none;">
+        <p style="font-size:0.8rem;color:#475569;margin-bottom:10px;">Scan this QR with WhatsApp (Linked Devices → Link a Device):</p>
+        <img id="qrImage" class="qr-img" src="" alt="QR Code">
+        <div style="margin-top:14px;">
+          <button class="btn btn-outline" style="width:auto;padding:8px 14px;font-size:0.82rem;" onclick="refreshQR()">Refresh QR</button>
+          <button class="btn btn-outline" style="width:auto;padding:8px 14px;font-size:0.82rem;" onclick="toggleQR()">Hide QR</button>
+        </div>
+      </div>
+      <div id="connected-msg" style="display:none;text-align:center;padding:12px;">
+        <strong style="color:#166534;">✓ WhatsApp Connected</strong>
+        <p style="font-size:0.8rem;color:#6b7280;margin-top:6px;">Customers can message you now.</p>
+        <button class="btn btn-danger btn-sm" onclick="disconnectWA()" style="width:auto;padding:6px 14px;">Disconnect</button>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-primary" onclick="refreshQR()" id="connectBtn">Connect WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="tab-nav">
+    <button class="active" onclick="showTab('add')">Add Property</button>
+    <button onclick="showTab('list')">My Properties</button>
+    <button onclick="showTab('visits')">Visit Requests</button>
+    <button onclick="showTab('contacts')">Allowed Contacts</button>
+    <button onclick="showTab('plan')">Plan</button>
+  </div>
+
+  <!-- Add Property Tab -->
+  <div id="tab-add" class="card">
+    <div class="card-header"><span>Add Property</span></div>
+    <div class="card-body">
+      <form id="addPropForm" novalidate>
+        <div class="input-group">
+          <label>Property Title</label>
+          <input type="text" id="prop-title" required placeholder="2BHK Family Home">
+        </div>
+        <div class="input-group">
+          <label>Monthly Rent (₹)</label>
+          <input type="number" id="prop-rent" required placeholder="12000">
+        </div>
+        <div class="input-group">
+          <label>Location / Area</label>
+          <input type="text" id="prop-location" required placeholder="Bhiwadi, Rajasthan">
+        </div>
+        <div class="input-group">
+          <label>Bedrooms</label>
+          <input type="number" id="prop-bedrooms" placeholder="2">
+        </div>
+        <div class="input-group">
+          <label>Bathrooms</label>
+          <input type="number" id="prop-bathrooms" placeholder="2">
+        </div>
+        <div class="input-group">
+          <label>Furnishing</label>
+          <select id="prop-furnishing">
+            <option value="">Select furnishing</option>
+            <option value="furnished">Furnished</option>
+            <option value="semi-furnished">Semi-furnished</option>
+            <option value="unfurnished">Unfurnished</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Additional Info</label>
+          <textarea id="prop-info" rows="2" placeholder="Parking, balcony, gym, security..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>Photos (multiple, optional)</label>
+          <input type="file" id="prop-photos" accept="image/*" multiple class="file-input">
+          <small style="color:#94a3b8;font-size:0.78rem;">Select multiple photos</small>
+        </div>
+        <div class="input-group">
+          <label>Video (one, optional)</label>
+          <input type="file" id="prop-video" accept="video/*" class="file-input">
+        </div>
+        <button type="submit" class="btn btn-primary">Add Property</button>
+      </form>
+      <div id="add-msg"></div>
+    </div>
+  </div>
+
+  <!-- My Properties Tab -->
+  <div id="tab-list" class="hidden card">
+    <div class="card-header"><span>My Properties</span> <button class="btn btn-outline btn-sm" onclick="loadProps()">Refresh</button></div>
+    <div class="card-body" id="propsList">
+      <p class="empty"><h3>No properties yet</h3><p>Add your first property from the Add Property tab.</p></p>
+    </div>
+  </div>
+
+  <!-- Visit Requests Tab -->
+  <div id="tab-visits" class="hidden card">
+    <div class="card-header"><span>Visit Requests</span> <button class="btn btn-outline btn-sm" onclick="loadVisits()">Refresh</button></div>
+    <div class="card-body" id="visitsList">
+      <p class="empty"><h3>No visit requests</h3><p>Customer visit requests will appear here.</p></p>
+    </div>
+  </div>
+
+  <!-- Allowed Contacts Tab -->
+  <div id="tab-contacts" class="hidden card">
+    <div class="card-header"><span>Allowed Contacts</span></div>
+    <div class="card-body">
+      <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;">Only these phone numbers can message your WhatsApp rental agent:</p>
+      <div class="input-group" style="margin-bottom:10px;">
+        <input type="text" id="contact-phone" placeholder="Phone (+919876543210)">
+      </div>
+      <div class="input-group" style="margin-bottom:14px;">
+        <input type="text" id="contact-name" placeholder="Name (optional)">
+      </div>
+      <button class="btn btn-primary" onclick="addContact()">Add Contact</button>
+      <div id="contactsList" style="margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <!-- Plan & Billing Tab -->
+  <div id="tab-plan" class="hidden card">
+    <div class="card-header"><span>Plan &amp; Billing</span> <button class="btn btn-outline btn-sm" onclick="loadPlan()">Refresh</button></div>
+    <div class="card-body" id="planBody">
+      <p class="empty">Loading plan...</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    SmartRent AI • Owner App • v2.0
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('sr_token') || '';
+let isOwner = !!token;
+
+// Tab switching
+function showTab(tab) {
+  document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById('tab-' + tab).classList.remove('hidden');
+  if (tab === 'list') loadProps();
+  if (tab === 'visits') loadVisits();
+  if (tab === 'contacts') loadContacts();
+  if (tab === 'plan') loadPlan();
+}
+
+// API helpers
+function authHeaders() {
+  return token ? {'Authorization': 'Bearer ' + token, 'Content-Type':'application/json'} : {'Content-Type':'application/json'};
+}
+
+function showMsg(el, text, type) {
+  el.innerHTML = '<div class="alert ' + (type === 'error' ? 'alert-error' : 'alert-success') + '">' + text + '</div>';
+  setTimeout(() => el.innerHTML = '', 4000);
+}
+
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type === 'error' ? 'alert-error' : 'alert-success');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.className += ' show', 10);
+  setTimeout(() => { t.className = 'toast'; setTimeout(() => t.remove(), 300); }, 2500);
+}
+
+// WhatsApp
+async function checkWA() {
+  try {
+    const res = await fetch(API + '/whatsapp/status');
+    const data = await res.json();
+    const statusEl = document.getElementById('wa-status');
+    const qrSection = document.getElementById('qr-section');
+    const connectedMsg = document.getElementById('connected-msg');
+    const connectBtn = document.getElementById('connectBtn');
+    if (data.linked) {
+      statusEl.textContent = 'Connected';
+      statusEl.className = 'status-pill status-connected';
+      statusEl.style.cursor = 'default';
+      qrSection.style.display = 'none';
+      connectedMsg.style.display = 'block';
+      connectBtn.style.display = 'none';
+    } else if (data.hasQr) {
+      statusEl.textContent = 'QR Ready';
+      statusEl.className = 'status-pill status-waiting';
+      statusEl.style.cursor = 'default';
+      qrSection.style.display = 'block';
+      connectedMsg.style.display = 'none';
+      connectBtn.style.display = 'none';
+      const img = document.getElementById('qrImage');
+      const qrRes = await fetch(API + '/whatsapp/qr');
+      const qrData = await qrRes.json();
+      if (qrData.qrImage) {
+        img.src = qrData.qrImage;
+        img.style.display = 'block';
+      }
+    } else {
+      statusEl.textContent = 'Not Connected';
+      statusEl.className = 'status-pill status-disconnected';
+      statusEl.style.cursor = 'pointer';
+      qrSection.style.display = 'none';
+      connectedMsg.style.display = 'none';
+      connectBtn.style.display = 'block';
+    }
+  } catch (e) {
+    console.error('WA check failed', e);
+  }
+}
+
+async function toggleQR() {
+  const qrSection = document.getElementById('qr-section');
+  const statusEl = document.getElementById('wa-status');
+  if (qrSection.style.display === 'none') {
+    const res = await fetch(API + '/whatsapp/qr');
+    const data = await res.json();
+    qrSection.style.display = 'block';
+    statusEl.textContent = 'QR Ready';
+    statusEl.className = 'status-pill status-waiting';
+    const img = document.getElementById('qrImage');
+    if (data.qrImage) {
+      img.src = data.qrImage;
+      img.style.display = 'block';
+    }
+  } else {
+    qrSection.style.display = 'none';
+    statusEl.textContent = 'Not Connected';
+    statusEl.className = 'status-pill status-disconnected';
+  }
+}
+
+async function refreshQR() {
+  const qrSection = document.getElementById('qr-section');
+  qrSection.style.display = 'block';
+  const img = document.getElementById('qrImage');
+  const qrRes = await fetch(API + '/whatsapp/qr');
+  const qrData = await qrRes.json();
+  if (qrData.qrImage) {
+    img.src = qrData.qrImage;
+    img.style.display = 'block';
+  }
+}
+
+async function disconnectWA() {
+  try {
+    await fetch(API + '/whatsapp/disconnect', { method: 'POST', headers: authHeaders() });
+    checkWA();
+    toast('WhatsApp disconnected');
+  } catch (e) { alert('Disconnect failed'); }
+}
+
+// Properties
+async function loadProps() {
+  try {
+    const res = await fetch(API + '/api/properties', { headers: authHeaders() });
+    const props = await res.json();
+    const list = document.getElementById('propsList');
+    if (props.length === 0) {
+      list.innerHTML = '<p class="empty"><h3>No properties yet</h3><p>Add your first property from the Add Property tab.</p></p>';
+      return;
+    }
+    list.innerHTML = props.map(p => `
+      <div class="prop-card">
+        <span class="prop-rent">₹${p.rent}/month</span>
+        <div class="prop-title">${escapeHtml(p.title||'Untitled')}</div>
+        <span class="prop-meta">${p.location || 'Location not set'} • ${p.bedrooms || '?'} BHK • ${p.bathrooms || '?'} bath</span>
+        <div class="prop-actions">
+          <button class="btn btn-danger btn-sm" onclick="deleteProp('${p.id}')" style="width:auto;">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('propsList').innerHTML = '<p class="empty">Error loading properties.</p>';
+  }
+}
+
+document.getElementById('addPropForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  const originalText = btn.textContent;
+  btn.textContent = 'Adding...';
+  btn.style.opacity = '0.7';
+  btn.disabled = true;
+  const formData = new FormData();
+  const photos = document.getElementById('prop-photos').files;
+  const video = document.getElementById('prop-video').files[0];
+  const payload = {
+    title: document.getElementById('prop-title').value,
+    rent: document.getElementById('prop-rent').value,
+    location: document.getElementById('prop-location').value,
+    bedrooms: document.getElementById('prop-bedrooms').value || null,
+    bathrooms: document.getElementById('prop-bathrooms').value || null,
+    furnishing: document.getElementById('prop-furnishing').value || null,
+    info: document.getElementById('prop-info').value || null,
+    status: 'available',
+  };
+  try {
+    const res = await fetch(API + '/api/properties', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const created = await res.json();
+    if (!res.ok) throw new Error(created.error || 'Failed to add property');
+
+    if (photos.length || video) {
+      const mediaForm = new FormData();
+      for (let i = 0; i < photos.length; i++) mediaForm.append('files', photos[i]);
+      if (video) mediaForm.append('files', video);
+      const mediaRes = await fetch(API + '/api/properties/' + created.id + '/media', {
+        method: 'POST',
+        headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+        body: mediaForm,
+      });
+      if (!mediaRes.ok) toast('Property saved, but media upload failed', 'error');
+    }
+
+    document.getElementById('addPropForm').reset();
+    document.getElementById('add-msg').innerHTML = '<div class="alert alert-success">Property added successfully!</div>';
+    setTimeout(() => document.getElementById('add-msg').innerHTML = '', 3000);
+    loadProps();
+    showTab('list');
+    toast('Property added successfully');
+  } catch (err) {
+    document.getElementById('add-msg').innerHTML = '<div class="alert alert-error">' + escapeHtml(err.message) + '</div>';
+  } finally {
+    btn.textContent = originalText;
+    btn.style.opacity = '1';
+    btn.disabled = false;
+  }
+};
+
+async function deleteProp(id) {
+  if (!confirm('Delete this property?')) return;
+  try {
+    const res = await fetch(API + '/api/properties/' + id, { method: 'DELETE', headers: authHeaders() });
+    if (!res.ok) throw new Error('Delete failed');
+    loadProps();
+    toast('Property deleted');
+  } catch (err) { alert(err.message); }
+}
+
+// Visits
+async function loadVisits() {
+  try {
+    const res = await fetch(API + '/api/visits/pending', { headers: authHeaders() });
+    const visits = await res.json();
+    const list = document.getElementById('visitsList');
+    if (visits.length === 0) {
+      list.innerHTML = '<p class="empty"><h3>No visit requests</h3><p>Customer visit requests will appear here.</p></p>';
+      return;
+    }
+    list.innerHTML = visits.map(v => `
+      <div class="visit-item">
+        <div class="visit-customer">${escapeHtml(v.phone)}</div>
+        <div class="visit-prop">${escapeHtml(v.title)} • ₹${v.rent}/month • ${escapeHtml(v.location)}</div>
+        <div class="visit-meta">Requested: ${new Date(v.created_at).toLocaleDateString()}</div>
+        <div class="visit-actions">
+          <button class="btn btn-success btn-sm" onclick="updateVisit('${v.id}','approved')" style="width:auto;">Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="updateVisit('${v.id}','rejected')" style="width:auto;">Reject</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('visitsList').innerHTML = '<p class="empty">Error loading visits.</p>';
+  }
+}
+
+async function updateVisit(id, status) {
+  try {
+    const res = await fetch(API + '/api/visits/' + id + '/status', { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status: status }) });
+    if (!res.ok) throw new Error('Failed');
+    loadVisits();
+    toast(status === 'approved' ? 'Visit approved' : 'Visit rejected');
+  } catch (err) { alert(err.message); }
+}
+
+// Contacts
+async function loadContacts() {
+  try {
+    const res = await fetch(API + '/api/allowed-contacts', { headers: authHeaders() });
+    const contacts = await res.json();
+    const container = document.getElementById('contactsList');
+    if (contacts.length === 0) {
+      container.innerHTML = '<p class="empty"><h3>No contacts</h3><p>Add phone numbers that can message your agent.</p></p>';
+      return;
+    }
+    container.innerHTML = '<table style="width:100%;border-collapse:collapse;">' + contacts.map(c => `
+      <tr style="border-bottom:1px solid #e2e8f0;">
+        <td style="padding:10px 0;font-weight:600;">${escapeHtml(c.phone)}</td>
+        <td style="padding:10px 0;color:#64748b;">${escapeHtml(c.name||'-')}</td>
+        <td style="padding:10px 0;"><button class="btn btn-danger btn-sm" onclick="removeContact('${c.phone}')" style="padding:4px 10px;font-size:0.8rem;">Remove</button></td>
+      </tr>
+    `).join('') + '</table>';
+  } catch (e) { container.innerHTML = '<p class="empty">Error loading contacts.</p>'; }
+}
+
+async function addContact() {
+  const phone = document.getElementById('contact-phone').value;
+  const name = document.getElementById('contact-name').value;
+  if (!phone) return alert('Phone required');
+  try {
+    const res = await fetch(API + '/api/allowed-contacts', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ phone, name }) });
+    if (!res.ok) throw new Error('Failed to add contact');
+    document.getElementById('contact-phone').value = '';
+    document.getElementById('contact-name').value = '';
+    loadContacts();
+    toast('Contact added');
+  } catch (err) { alert(err.message); }
+}
+
+async function removeContact(phone) {
+  if (!confirm('Remove this contact?')) return;
+  try {
+    await fetch(API + '/api/allowed-contacts/' + phone, { method: 'DELETE', headers: authHeaders() });
+    loadContacts();
+    toast('Contact removed');
+  } catch (err) { alert(err.message); }
+}
+
+// Plan & billing
+const PLAN_OPTIONS = [
+  { id: 'starter', name: 'Starter', price: 49900, properties: 10, matches: 50, visits: 10 },
+  { id: 'professional', name: 'Professional', price: 99900, properties: 50, matches: 200, visits: 50 },
+  { id: 'business', name: 'Business', price: 199900, properties: 200, matches: 1000, visits: 200 },
+];
+
+function rupees(paise) {
+  return '₹' + Math.round((paise || 0) / 100).toLocaleString('en-IN');
+}
+
+function planStatusLabel(status) {
+  return {
+    trialing: 'Free trial',
+    active: 'Active',
+    past_due: 'Payment due',
+    cancelled: 'Cancelled',
+    expired: 'Expired',
+    none: 'No plan',
+  }[status] || status;
+}
+
+function usageRow(label, used, limit) {
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  return '<div class="usage-row">' +
+    '<div class="usage-label"><span>' + label + '</span><span>' + used + ' / ' + (limit == null ? '—' : limit) + '</span></div>' +
+    '<div class="usage-bar"><div class="usage-fill" style="width:' + pct + '%"></div></div>' +
+    '</div>';
+}
+
+async function loadPlan() {
+  const body = document.getElementById('planBody');
+  body.innerHTML = '<p class="empty">Loading plan...</p>';
+  try {
+    const res = await fetch(API + '/api/subscription/status', { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load plan');
+
+    const current = data.plan || '';
+    const usage = data.usage || {};
+    const renewal = data.trial_end || data.renewal_date;
+    let html = '<div style="margin-bottom:16px;">' +
+      '<div style="font-size:1.15rem;font-weight:800;color:#0f172a;">' + escapeHtml(data.plan_name ? data.plan_name.charAt(0).toUpperCase() + data.plan_name.slice(1) : 'No plan') + '</div>' +
+      '<div style="font-size:0.82rem;color:#64748b;margin-top:2px;">' + escapeHtml(planStatusLabel(data.status)) +
+      (renewal ? ' • until ' + new Date(renewal).toLocaleDateString('en-IN') : '') + '</div>' +
+      '</div>';
+
+    if (data.status !== 'none') {
+      html += usageRow('Properties', usage.properties || 0, data.property_limit) +
+        usageRow('Matches this month', usage.matches || 0, data.monthly_match_limit) +
+        usageRow('Visits this month', usage.visits || 0, data.monthly_visit_limit);
+    }
+
+    html += '<div style="font-size:0.8rem;font-weight:700;color:#475569;margin:18px 0 10px;">Choose a plan</div>';
+    html += PLAN_OPTIONS.map(function (p) {
+      const isCurrent = current === p.id || current === 'plan-' + p.id;
+      return '<div class="plan-option' + (isCurrent ? ' current' : '') + '">' +
+        '<div><div style="font-weight:700;">' + p.name + (isCurrent ? ' (current)' : '') + '</div>' +
+        '<div class="plan-perks">' + p.properties + ' properties • ' + p.matches + ' matches • ' + p.visits + ' visits / month</div></div>' +
+        '<div style="text-align:right;"><div class="plan-price">' + rupees(p.price) + '</div>' +
+        '<div style="font-size:0.7rem;color:#94a3b8;">per month</div>' +
+        (isCurrent ? '' : '<button class="btn btn-primary btn-sm" style="margin-top:6px;" onclick="upgradePlan(\'' + p.id + '\')">Choose</button>') +
+        '</div></div>';
+    }).join('');
+
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = '<div class="alert alert-error">' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+function loadRazorpay() {
+  return new Promise(function (resolve, reject) {
+    if (window.Razorpay) return resolve();
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = function () { resolve(); };
+    script.onerror = function () { reject(new Error('Could not load the payment window')); };
+    document.body.appendChild(script);
+  });
+}
+
+async function upgradePlan(planId) {
+  try {
+    const res = await fetch(API + '/api/subscription/checkout', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ plan_id: planId }),
+    });
+    const order = await res.json();
+    if (!res.ok) throw new Error(order.error || 'Could not start payment');
+
+    await loadRazorpay();
+    const rzp = new Razorpay({
+      key: order.keyId,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'SmartRent AI',
+      description: order.planName + ' plan',
+      order_id: order.orderId,
+      theme: { color: '#4f46e5' },
+      handler: async function (payment) {
+        try {
+          const verifyRes = await fetch(API + '/api/subscription/payment/verify', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+              razorpay_order_id: payment.razorpay_order_id,
+              razorpay_payment_id: payment.razorpay_payment_id,
+              razorpay_signature: payment.razorpay_signature,
+            }),
+          });
+          const verified = await verifyRes.json();
+          if (!verifyRes.ok) throw new Error(verified.error || 'Payment verification failed');
+          toast('Plan activated');
+          loadPlan();
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      },
+      modal: {
+        ondismiss: function () { toast('Payment cancelled'); },
+      },
+    });
+    rzp.on('payment.failed', function (resp) {
+      toast((resp.error && resp.error.description) || 'Payment failed', 'error');
+    });
+    rzp.open();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// Login check
+if (token) {
+  isOwner = true;
+  document.getElementById('connectBtn').style.display = 'block';
+  checkWA();
+  loadProps();
+  loadContacts();
+} else {
+  document.body.innerHTML = `
+    <div class="app-bar"><h1>SmartRent Owner</h1><p>Login Required</p></div>
+    <div class="container" style="display:flex;align-items:center;justify-content:center;min-height:400px;">
+      <div class="login-box" style="max-width:340px;">
+        <h2 style="text-align:center;margin-bottom:20px;">Owner Login</h2>
+        <div id="login-error" class="alert alert-error hidden"></div>
+        <form id="loginForm">
+          <div class="input-group"><label>Username</label><input type="text" id="u-username" placeholder="admin"></div>
+          <div class="input-group"><label>Password</label><input type="password" id="u-password" placeholder="admin123"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">Login</button>
+        </form>
+      </div>
+    </div>
+  `;
+  document.getElementById('loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const res = await fetch(API + '/api/owner/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ username: document.getElementById('u-username').value, password: document.getElementById('u-password').value }) });
+    if (res.ok) {
+      const data = await res.json();
+      token = data.token;
+      localStorage.setItem('sr_token', token);
+      isOwner = true;
+      location.reload();
+    } else {
+      document.getElementById('login-error').classList.remove('hidden');
+      document.getElementById('login-error').textContent = 'Invalid credentials';
+    }
+  };
+}
+
+function escapeHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Auto-refresh QR every 30 seconds when visible
+setInterval(() => {
+  if (document.getElementById('qr-section') && document.getElementById('qr-section').style.display !== 'none') {
+    refreshQR();
+  }
+}, 30000);
+
+// Initial load
+if (isOwner) {
+  checkWA();
+  loadProps();
+  loadContacts();
+}
+</script>
+</body>
+</html>
