@@ -210,6 +210,7 @@ app.get('/api/properties/export', authenticateToken, (req, res) => {
 // WhatsApp webhook endpoint
 app.post('/webhook/whatsapp', (req, res) => {
   const { verifyWebhookSignature, parseWebhookMessage } = require('./services/whatsapp-cloud');
+  const { sendMessage } = require('./services/whatsapp-cloud');
   const { init } = require('./db');
   const db = init();
 
@@ -233,8 +234,13 @@ app.post('/webhook/whatsapp', (req, res) => {
   const reply = handleMessage(msg.phone, msg.text);
 
   if (reply) {
-    // Send reply via WhatsApp Cloud API (placeholder - full implementation in Task 3)
-    console.log('[whatsapp] Would send to', msg.phone, ':', reply);
+    // Send reply via WhatsApp Cloud API
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '123456789';
+    sendMessage(phoneNumberId, msg.phone, reply).then(() => {
+      console.log('[whatsapp] Sent reply to', msg.phone);
+    }).catch((err) => {
+      console.error('[whatsapp] Send error:', err.message);
+    });
   }
 
   res.status(200).json({ status: 'ok' });
