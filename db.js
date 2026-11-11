@@ -127,6 +127,16 @@ function init() {
     if (!e.message.includes('duplicate column name')) throw e;
   }
 
+  const migration19 = fs.readFileSync(
+    path.join(__dirname, 'migrations', '019_subscription_plans.sql'),
+    'utf8'
+  );
+  try {
+    db.exec(migration19);
+  } catch (e) {
+    if (!e.message.includes('duplicate column name')) throw e;
+  }
+
   return db;
 }
 
