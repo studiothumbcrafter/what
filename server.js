@@ -1,17 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { authenticateToken } = require('./services/auth');
+const jwt = require('jsonwebtoken');
+const { authenticateToken, getJwtSecret } = require('./services/auth');
+const { ensureOwnerOrg } = require('./services/org');
 const { init } = require('./db');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'smartrent-secret-change-me';
 
 app.use(cors());
-app.use(express.json());
+// Keep the raw body so Razorpay webhook signatures can be verified.
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
 
 let db;
@@ -29,14 +31,19 @@ app.locals.db = db;
 const OWNER_USERNAME = process.env.OWNER_USERNAME || 'admin';
 const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'admin123';
 
-// Owner login
+// Map the single owner account to an organization for tenant-scoped data.
+const OWNER_ORG_ID = ensureOwnerOrg(db);
 
 // Owner login
 app.post('/api/owner/login', (req, res) => {
   const { username, password } = req.body || {};
   if (username === OWNER_USERNAME && password === OWNER_PASSWORD) {
-    const token = jwt.sign({ username, role: 'owner' }, JWT_SECRET, { expiresIn: '7d' });
-    return res.json({ token, username });
+    const token = jwt.sign(
+      { sub: 'owner', username, role: 'owner', org_id: OWNER_ORG_ID },
+      getJwtSecret(),
+      { expiresIn: '7d' }
+    );
+    return res.json({ token, username, org_id: OWNER_ORG_ID });
   }
   res.status(401).json({ error: 'Invalid credentials' });
 });
@@ -80,6 +87,9 @@ app.get('/api/properties', (req, res) => {
   });
   res.json(result);
 });
+
+// Razorpay payment webhook (must be mounted before the authenticated /api router)
+app.use('/api/webhook/payment', require('./routes/payment-webhook'));
 
 // Owner dashboard APIs (authenticated)
 app.use('/api', require('./routes/owner'));
@@ -143,9 +153,11 @@ app.get('/manifest.json', (req, res) => {
 });
 
 // Excel export function
-function exportPropertiesToExcel() {
+function exportPropertiesToExcel(organizationId) {
   try {
-    const props = db.prepare('SELECT * FROM properties ORDER BY created_at DESC').all();
+    const props = organizationId
+      ? db.prepare('SELECT * FROM properties WHERE organization_id = ? ORDER BY created_at DESC').all(organizationId)
+      : db.prepare('SELECT * FROM properties ORDER BY created_at DESC').all();
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Properties');
     sheet.columns = [
@@ -200,7 +212,7 @@ console.log('[whatsapp] Skipped (no Chrome display in this environment)');
 // Export endpoint
 app.get('/api/properties/export', authenticateToken, (req, res) => {
   try {
-    exportPropertiesToExcel();
+    exportPropertiesToExcel(req.user.org_id);
     res.download(path.join(__dirname, 'data', 'properties.xlsx'), 'properties.xlsx');
   } catch (err) {
     res.status(500).json({ error: 'Export failed: ' + err.message });

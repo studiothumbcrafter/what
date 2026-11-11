@@ -1,3 +1,10 @@
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+
+const tmpDb = path.join(os.tmpdir(), `smartrent-migration-subs-${Date.now()}.sqlite`);
+process.env.SMARTRENT_TEST_DB = tmpDb;
+
 const { init } = require('../../db');
 
 describe('Database migrations - subscriptions and plans', () => {

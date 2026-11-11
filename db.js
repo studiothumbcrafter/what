@@ -131,13 +131,26 @@ function init() {
     path.join(__dirname, 'migrations', '019_subscription_plans.sql'),
     'utf8'
   );
-  try {
-    db.exec(migration19);
-  } catch (e) {
-    if (!e.message.includes('duplicate column name')) throw e;
-  }
+  db.exec(migration19);
+
+  // SQLite has no ADD COLUMN IF NOT EXISTS, so add each column only when absent.
+  ensureColumn(db, 'subscriptions', 'plan_id', 'TEXT REFERENCES plans(id)');
+  ensureColumn(db, 'subscriptions', 'price_paise', 'INTEGER');
+  ensureColumn(db, 'subscriptions', 'currency', "TEXT DEFAULT 'INR'");
+  ensureColumn(db, 'subscriptions', 'trial_start', 'TEXT');
+  ensureColumn(db, 'subscriptions', 'trial_end', 'TEXT');
+  ensureColumn(db, 'subscriptions', 'canceled_at', 'TEXT');
+  ensureColumn(db, 'subscriptions', 'canceled_reason', 'TEXT');
+  ensureColumn(db, 'subscriptions', 'payment_method', 'TEXT');
+  ensureColumn(db, 'usage_logs', 'subscription_id', 'TEXT');
 
   return db;
+}
+
+function ensureColumn(db, table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (columns.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 module.exports = { init, dbPath };
