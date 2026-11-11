@@ -42,6 +42,20 @@ describe('Owner dashboard flow', () => {
     expect(res.body.db).toBe('sqlite');
   });
 
+  test('WhatsApp card describes Cloud API setup instead of a QR scan', async () => {
+    const page = await request(app).get('/owner');
+    expect(page.text).toContain('Meta WhatsApp Cloud API');
+    expect(page.text).not.toContain('Refresh QR');
+
+    const status = await request(app)
+      .get('/api/whatsapp/status')
+      .set('Authorization', `Bearer ${token}`);
+    expect(status.status).toBe(200);
+    expect(status.body.mode).toBe('cloud');
+    expect(status.body.hasQr).toBe(false);
+    expect(Array.isArray(status.body.missing)).toBe(true);
+  });
+
   test('GET /owner serves the dashboard with plan and property UI', async () => {
     const res = await request(app).get('/owner');
     expect(res.status).toBe(200);

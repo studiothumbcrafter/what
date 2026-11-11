@@ -5,7 +5,6 @@ const fs = require('fs');
 const ExcelJS = require('exceljs');
 const Property = require('../models/Property');
 const Media = require('../models/Media');
-const whatsapp = require('../services/whatsapp');
 const Visit = require('../models/Visit');
 const { enforceLimit } = require('../services/subscription');
 const { authenticateToken } = require('../services/auth');
@@ -285,24 +284,29 @@ router.delete('/allowed-contacts/:phone', function (req, res) {
   res.json({ ok: true });
 });
 
-// WhatsApp QR code
+// WhatsApp Cloud API status (no QR pairing)
 router.get('/whatsapp/qr', function (req, res) {
-  const qr = whatsapp.getQR();
-  const qrImage = whatsapp.getQRImage();
-  if (!qr) return res.status(404).json({ error: 'QR code not available yet' });
-  res.json({ qr: qr, qrImage: qrImage });
+  res.status(410).json({
+    error: 'QR pairing is not used. Configure the Meta WhatsApp Cloud API variables in Render.',
+  });
 });
 
-// WhatsApp status
 router.get('/whatsapp/status', function (req, res) {
-  const qr = whatsapp.getQR();
-  res.json({ linked: whatsapp.getIsLinked(), hasQr: !!qr });
+  const required = ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'];
+  const missing = required.filter(function (key) { return !process.env[key]; });
+  res.json({
+    mode: 'cloud',
+    configured: missing.length === 0,
+    missing: missing,
+    linked: false,
+    hasQr: false,
+  });
 });
 
-// Disconnect WhatsApp
-router.post('/whatsapp/disconnect', async function (req, res) {
-  await whatsapp.disconnect();
-  res.json({ ok: true, message: 'WhatsApp disconnected' });
+router.post('/whatsapp/disconnect', function (req, res) {
+  res.status(410).json({
+    error: 'Cloud API connections are managed in Meta, not from this dashboard.',
+  });
 });
 
 // Subscription status

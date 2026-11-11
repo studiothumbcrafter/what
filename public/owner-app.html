@@ -93,24 +93,13 @@
   <div class="card">
     <div class="card-header">
       <span>WhatsApp Connection</span>
-      <span id="wa-status" class="status-pill status-disconnected" onclick="toggleQR()">Disconnected</span>
+      <span id="wa-status" class="status-pill status-disconnected">Checking</span>
     </div>
     <div class="card-body">
-      <div class="whatsapp-section" id="qr-section" style="display:none;">
-        <p style="font-size:0.8rem;color:#475569;margin-bottom:10px;">Scan this QR with WhatsApp (Linked Devices → Link a Device):</p>
-        <img id="qrImage" class="qr-img" src="" alt="QR Code">
-        <div style="margin-top:14px;">
-          <button class="btn btn-outline" style="width:auto;padding:8px 14px;font-size:0.82rem;" onclick="refreshQR()">Refresh QR</button>
-          <button class="btn btn-outline" style="width:auto;padding:8px 14px;font-size:0.82rem;" onclick="toggleQR()">Hide QR</button>
-        </div>
-      </div>
-      <div id="connected-msg" style="display:none;text-align:center;padding:12px;">
-        <strong style="color:#166534;">✓ WhatsApp Connected</strong>
-        <p style="font-size:0.8rem;color:#6b7280;margin-top:6px;">Customers can message you now.</p>
-        <button class="btn btn-danger btn-sm" onclick="disconnectWA()" style="width:auto;padding:6px 14px;">Disconnect</button>
-      </div>
-      <div style="margin-top:12px;">
-        <button class="btn btn-primary" onclick="refreshQR()" id="connectBtn">Connect WhatsApp</button>
+      <div style="font-size:0.85rem;color:#475569;line-height:1.55;">
+        <p><strong>Meta WhatsApp Cloud API</strong> — no QR scan is used.</p>
+        <p style="margin-top:8px;">Set <code>WHATSAPP_ACCESS_TOKEN</code>, <code>WHATSAPP_PHONE_NUMBER_ID</code>, <code>WHATSAPP_APP_SECRET</code>, and <code>WHATSAPP_VERIFY_TOKEN</code> in Render, then point Meta's webhook to <code>/webhook/whatsapp</code>.</p>
+        <p id="wa-missing" style="margin-top:8px;color:#b45309;"></p>
       </div>
     </div>
   </div>
@@ -257,88 +246,28 @@ function toast(msg, type) {
   setTimeout(() => { t.className = 'toast'; setTimeout(() => t.remove(), 300); }, 2500);
 }
 
-// WhatsApp
+// WhatsApp Cloud API status (no QR pairing)
 async function checkWA() {
   try {
     const res = await fetch(API + '/whatsapp/status');
     const data = await res.json();
     const statusEl = document.getElementById('wa-status');
-    const qrSection = document.getElementById('qr-section');
-    const connectedMsg = document.getElementById('connected-msg');
-    const connectBtn = document.getElementById('connectBtn');
-    if (data.linked) {
-      statusEl.textContent = 'Connected';
+    const missingEl = document.getElementById('wa-missing');
+    if (data.configured) {
+      statusEl.textContent = 'Cloud API Ready';
       statusEl.className = 'status-pill status-connected';
-      statusEl.style.cursor = 'default';
-      qrSection.style.display = 'none';
-      connectedMsg.style.display = 'block';
-      connectBtn.style.display = 'none';
-    } else if (data.hasQr) {
-      statusEl.textContent = 'QR Ready';
-      statusEl.className = 'status-pill status-waiting';
-      statusEl.style.cursor = 'default';
-      qrSection.style.display = 'block';
-      connectedMsg.style.display = 'none';
-      connectBtn.style.display = 'none';
-      const img = document.getElementById('qrImage');
-      const qrRes = await fetch(API + '/whatsapp/qr');
-      const qrData = await qrRes.json();
-      if (qrData.qrImage) {
-        img.src = qrData.qrImage;
-        img.style.display = 'block';
-      }
+      missingEl.textContent = '';
     } else {
-      statusEl.textContent = 'Not Connected';
+      statusEl.textContent = 'Not Configured';
       statusEl.className = 'status-pill status-disconnected';
-      statusEl.style.cursor = 'pointer';
-      qrSection.style.display = 'none';
-      connectedMsg.style.display = 'none';
-      connectBtn.style.display = 'block';
+      const missing = data.missing || [];
+      missingEl.textContent = missing.length
+        ? 'Missing environment variables: ' + missing.join(', ')
+        : 'Add the WhatsApp Cloud API variables in Render to enable messaging.';
     }
   } catch (e) {
     console.error('WA check failed', e);
   }
-}
-
-async function toggleQR() {
-  const qrSection = document.getElementById('qr-section');
-  const statusEl = document.getElementById('wa-status');
-  if (qrSection.style.display === 'none') {
-    const res = await fetch(API + '/whatsapp/qr');
-    const data = await res.json();
-    qrSection.style.display = 'block';
-    statusEl.textContent = 'QR Ready';
-    statusEl.className = 'status-pill status-waiting';
-    const img = document.getElementById('qrImage');
-    if (data.qrImage) {
-      img.src = data.qrImage;
-      img.style.display = 'block';
-    }
-  } else {
-    qrSection.style.display = 'none';
-    statusEl.textContent = 'Not Connected';
-    statusEl.className = 'status-pill status-disconnected';
-  }
-}
-
-async function refreshQR() {
-  const qrSection = document.getElementById('qr-section');
-  qrSection.style.display = 'block';
-  const img = document.getElementById('qrImage');
-  const qrRes = await fetch(API + '/whatsapp/qr');
-  const qrData = await qrRes.json();
-  if (qrData.qrImage) {
-    img.src = qrData.qrImage;
-    img.style.display = 'block';
-  }
-}
-
-async function disconnectWA() {
-  try {
-    await fetch(API + '/whatsapp/disconnect', { method: 'POST', headers: authHeaders() });
-    checkWA();
-    toast('WhatsApp disconnected');
-  } catch (e) { alert('Disconnect failed'); }
 }
 
 // Properties
@@ -617,11 +546,9 @@ if (token) {
 
 function escapeHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// Auto-refresh QR every 30 seconds when visible
+// Refresh WhatsApp status every 30 seconds
 setInterval(() => {
-  if (document.getElementById('qr-section') && document.getElementById('qr-section').style.display !== 'none') {
-    refreshQR();
-  }
+  if (isOwner) checkWA();
 }, 30000);
 
 // Initial load
