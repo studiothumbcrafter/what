@@ -39,6 +39,7 @@ const upload = multer({ storage: storage });
 router.use(function (req, res, next) {
   Property.setDatabase(req.app.locals.db);
   Media.setDatabase(req.app.locals.db);
+  Visit.setDatabase(req.app.locals.db);
   next();
 });
 
@@ -221,19 +222,21 @@ router.get('/properties/:id/media', function (req, res) {
 // Match requests view (owner)
 router.get('/matches', function (req, res) {
   const d = req.app.locals.db;
+  const orgId = req.user.org_id;
   const rows = d.prepare(`
     SELECT m.id, m.phone, m.property_id, m.shown_at, p.title, p.rent, p.location, p.bedrooms
     FROM matches m
     JOIN properties p ON p.id = m.property_id
+    WHERE m.organization_id = ?
     ORDER BY m.shown_at DESC
-  `).all();
+  `).all(orgId);
   res.json(rows);
 });
 
 // Interested customers view (owner)
 router.get('/customers', function (req, res) {
   const d = req.app.locals.db;
-  const rows = d.prepare('SELECT * FROM customers ORDER BY updated_at DESC').all();
+  const rows = d.prepare('SELECT * FROM customers WHERE organization_id = ? ORDER BY updated_at DESC').all(req.user.org_id);
   const result = rows.map(r => {
     let requirements = {};
     try { requirements = JSON.parse(r.requirements || '{}'); } catch (e) {}
@@ -245,17 +248,28 @@ router.get('/customers', function (req, res) {
 // Allowed contacts (whitelist) — who can use the rental agent
 router.get('/allowed-contacts', function (req, res) {
   const d = req.app.locals.db;
-  const rows = d.prepare('SELECT * FROM allowed_contacts ORDER BY added_at DESC').all();
+  const rows = d.prepare('SELECT * FROM allowed_contacts WHERE organization_id = ? ORDER BY added_at DESC').all(req.user.org_id);
   res.json(rows);
 });
 
 router.post('/allowed-contacts', function (req, res) {
   const d = req.app.locals.db;
+  const orgId = req.user.org_id;
   const { phone, name } = req.body || {};
   if (!phone) return res.status(400).json({ error: 'phone is required' });
   try {
-    d.prepare('INSERT OR REPLACE INTO allowed_contacts (phone, name, added_at) VALUES (@phone, @name, @added_at)')
-      .run({ phone, name: name || null, added_at: new Date().toISOString() });
+    const existing = d.prepare('SELECT organization_id FROM allowed_contacts WHERE phone = ?').get(phone);
+    if (existing && existing.organization_id && existing.organization_id !== orgId) {
+      return res.status(409).json({ error: 'This phone number is already registered with another workspace' });
+    }
+    d.prepare(`
+      INSERT INTO allowed_contacts (phone, name, added_at, organization_id)
+      VALUES (@phone, @name, @added_at, @organization_id)
+      ON CONFLICT(phone) DO UPDATE SET
+        name = excluded.name,
+        added_at = excluded.added_at,
+        organization_id = excluded.organization_id
+    `).run({ phone, name: name || null, added_at: new Date().toISOString(), organization_id: orgId });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -264,7 +278,8 @@ router.post('/allowed-contacts', function (req, res) {
 
 router.delete('/allowed-contacts/:phone', function (req, res) {
   const d = req.app.locals.db;
-  d.prepare('DELETE FROM allowed_contacts WHERE phone = @phone').run({ phone: req.params.phone });
+  d.prepare('DELETE FROM allowed_contacts WHERE phone = @phone AND organization_id = @organization_id')
+    .run({ phone: req.params.phone, organization_id: req.user.org_id });
   res.json({ ok: true });
 });
 
@@ -365,8 +380,9 @@ router.get('/visits', function (req, res) {
     SELECT v.*, p.title, p.rent, p.location, p.bedrooms
     FROM visits v
     JOIN properties p ON p.id = v.property_id
+    WHERE v.organization_id = ?
     ORDER BY v.created_at DESC
-  `).all();
+  `).all(req.user.org_id);
   res.json(rows);
 });
 
@@ -377,32 +393,30 @@ router.get('/visits/pending', function (req, res) {
     SELECT v.*, p.title, p.rent, p.location, p.bedrooms
     FROM visits v
     JOIN properties p ON p.id = v.property_id
-    WHERE v.status = 'pending'
+    WHERE v.status = 'pending' AND v.organization_id = ?
     ORDER BY v.created_at DESC
-  `).all();
+  `).all(req.user.org_id);
   res.json(rows);
 });
 
 // Approve / reject a visit
 router.patch('/visits/:id/status', function (req, res) {
-  const d = req.app.locals.db;
   const { status } = req.body || {};
   if (!status || !['approved', 'rejected'].includes(status)) {
     return res.status(400).json({ error: 'status must be approved or rejected' });
   }
-  const visit = Visit.setStatus(req.params.id, status);
+  const visit = Visit.setStatus(req.params.id, status, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
 });
 
 // Set visit date & time
 router.patch('/visits/:id/schedule', function (req, res) {
-  const d = req.app.locals.db;
   const { visit_date, visit_time } = req.body || {};
   if (!visit_date || !visit_time) {
     return res.status(400).json({ error: 'visit_date and visit_time are required' });
   }
-  const visit = Visit.setVisitDetails(req.params.id, visit_date, visit_time);
+  const visit = Visit.setVisitDetails(req.params.id, visit_date, visit_time, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
 });

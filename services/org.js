@@ -18,4 +18,15 @@ function ensureOwnerOrg(db) {
   return OWNER_ORG_ID;
 }
 
-module.exports = { ensureOwnerOrg, OWNER_ORG_ID };
+function backfillOrganization(db, orgId) {
+  const tables = ['properties', 'visits', 'customers', 'matches', 'allowed_contacts'];
+  const stmt = tables.map((table) =>
+    db.prepare(`UPDATE ${table} SET organization_id = ? WHERE organization_id IS NULL OR organization_id = ''`)
+  );
+  const run = db.transaction(() => {
+    stmt.forEach((s) => s.run(orgId));
+  });
+  run();
+}
+
+module.exports = { ensureOwnerOrg, backfillOrganization, OWNER_ORG_ID };

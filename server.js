@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, getJwtSecret } = require('./services/auth');
-const { ensureOwnerOrg } = require('./services/org');
+const { ensureOwnerOrg, backfillOrganization } = require('./services/org');
 const { init } = require('./db');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
@@ -26,13 +26,19 @@ try {
 
 app.locals.db = db;
 
+// Health check for Render and uptime monitors.
+app.get('/health', (req, res) => {
+  res.json({ ok: true, uptime: Math.round(process.uptime()), db: 'sqlite' });
+});
+
 // Default owner credentials
 const OWNER_USERNAME = process.env.OWNER_USERNAME || 'admin';
 const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'admin123';
 
 // Map the single owner account to an organization for tenant-scoped data.
 const OWNER_ORG_ID = ensureOwnerOrg(db);
-const { ensureTrialSubscription } = require('./services/subscription');
+backfillOrganization(db, OWNER_ORG_ID);
+const { ensureTrialSubscription, enforceLimit, recordUsage } = require('./services/subscription');
 ensureTrialSubscription(db, OWNER_ORG_ID);
 
 // Owner login
@@ -99,9 +105,22 @@ app.post('/api/visits/request', authenticateToken, (req, res) => {
   if (!property_id) return res.status(400).json({ error: 'property_id is required' });
   const prop = d.prepare('SELECT * FROM properties WHERE id = @id').get({ id: property_id });
   if (!prop) return res.status(404).json({ error: 'Property not found' });
+  if (prop.organization_id && req.user.org_id && prop.organization_id !== req.user.org_id) {
+    return res.status(404).json({ error: 'Property not found' });
+  }
+  const orgId = prop.organization_id || req.user.org_id;
+  if (!orgId) {
+    return res.status(403).json({ error: 'Token is missing organization context' });
+  }
+  try {
+    enforceLimit(d, orgId, 'visit');
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ error: err.message });
+  }
   const Visit = require('./models/Visit');
   Visit.setDatabase(d);
-  const visit = Visit.create(req.user.phone || 'website-customer', property_id, message || 'Visit requested via website');
+  const visit = Visit.create(req.user.phone || 'website-customer', property_id, message || 'Visit requested via website', orgId);
+  recordUsage(d, orgId, 'visit', 1);
   res.json({ ok: true, visit });
 });
 
@@ -114,7 +133,7 @@ app.patch('/api/visits/:id/status', authenticateToken, (req, res) => {
   }
   const Visit = require('./models/Visit');
   Visit.setDatabase(d);
-  const visit = Visit.setStatus(req.params.id, status);
+  const visit = Visit.setStatus(req.params.id, status, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
 });
@@ -127,7 +146,7 @@ app.patch('/api/visits/:id/schedule', authenticateToken, (req, res) => {
   }
   const Visit = require('./models/Visit');
   Visit.setDatabase(d);
-  const visit = Visit.setVisitDetails(req.params.id, visit_date, visit_time);
+  const visit = Visit.setVisitDetails(req.params.id, visit_date, visit_time, req.user.org_id);
   if (!visit) return res.status(404).json({ error: 'Visit not found' });
   res.json(visit);
 });

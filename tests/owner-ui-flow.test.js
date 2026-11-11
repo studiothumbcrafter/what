@@ -35,6 +35,13 @@ describe('Owner dashboard flow', () => {
     }
   });
 
+  test('GET /health reports service and database status', async () => {
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.db).toBe('sqlite');
+  });
+
   test('GET /owner serves the dashboard with plan and property UI', async () => {
     const res = await request(app).get('/owner');
     expect(res.status).toBe(200);
