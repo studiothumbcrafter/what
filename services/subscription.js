@@ -1,7 +1,7 @@
 // Subscription helpers: activation and plan-limit enforcement (Stage 5).
 
 function getSubscription(db, orgId) {
-  return db.prepare(`
+  const row = db.prepare(`
     SELECT s.*, p.name AS plan_name,
            COALESCE(s.price_paise, p.price_paise) AS effective_price_paise,
            p.property_limit, p.monthly_match_limit, p.monthly_visit_limit
@@ -9,6 +9,32 @@ function getSubscription(db, orgId) {
     LEFT JOIN plans p ON s.plan_id = p.id
     WHERE s.organization_id = ?
   `).get(orgId);
+
+  if (row && row.status === 'trialing' && row.trial_end) {
+    if (new Date(row.trial_end).getTime() < Date.now()) {
+      db.prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ?").run(row.id);
+      row.status = 'expired';
+    }
+  }
+  return row;
+}
+
+function ensureTrialSubscription(db, orgId, days) {
+  if (!orgId) return null;
+  const existing = db.prepare(
+    'SELECT id FROM subscriptions WHERE organization_id = ?'
+  ).get(orgId);
+  if (existing) return getSubscription(db, orgId);
+
+  const trialEnd = new Date(Date.now() + (days || 14) * 24 * 60 * 60 * 1000).toISOString();
+  db.prepare(`
+    INSERT INTO subscriptions
+      (id, organization_id, plan, plan_id, status, price_paise, currency,
+       trial_start, trial_end, created_at)
+    VALUES (?, ?, 'starter', 'plan-starter', 'trialing', 49900, 'INR', datetime('now'), ?, datetime('now'))
+  `).run('sub-' + orgId, orgId, trialEnd);
+
+  return getSubscription(db, orgId);
 }
 
 function addMonth(from) {
@@ -101,6 +127,10 @@ function enforceLimit(db, orgId, kind) {
   const sub = getSubscription(db, orgId);
   if (!sub) throw limitError(kind === 'property' ? 'properties' : kind, 0);
 
+  if (['expired', 'cancelled'].includes(sub.status)) {
+    throw limitError(kind === 'property' ? 'properties' : kind + 's', 0);
+  }
+
   if (kind === 'property') {
     const count = db.prepare(
       'SELECT COUNT(*) AS count FROM properties WHERE organization_id = ?'
@@ -132,6 +162,7 @@ function enforceLimit(db, orgId, kind) {
 
 module.exports = {
   getSubscription,
+  ensureTrialSubscription,
   activateSubscription,
   enforceLimit,
   recordUsage,

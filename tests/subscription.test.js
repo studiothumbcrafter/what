@@ -19,6 +19,7 @@ describe('Subscription status endpoint', () => {
   let db;
   let token;
   let orgId;
+  let initialSubscription;
 
   beforeAll(async () => {
     db = init();
@@ -29,6 +30,10 @@ describe('Subscription status endpoint', () => {
 
     token = loginRes.body.token;
     orgId = jwt.decode(token).org_id;
+
+    initialSubscription = db.prepare(
+      'SELECT * FROM subscriptions WHERE organization_id = ?'
+    ).get(orgId);
 
     db.prepare(`
       INSERT INTO subscriptions (id, organization_id, plan_id, status, price_paise, currency, created_at)
@@ -45,6 +50,13 @@ describe('Subscription status endpoint', () => {
     expect(token).toBeDefined();
     expect(orgId).toBeDefined();
     expect(jwt.decode(token).role).toBe('owner');
+  });
+
+  test('a fresh owner organization starts on a starter trial', () => {
+    expect(initialSubscription).toBeDefined();
+    expect(initialSubscription.status).toBe('trialing');
+    expect(initialSubscription.plan_id).toBe('plan-starter');
+    expect(new Date(initialSubscription.trial_end).getTime()).toBeGreaterThan(Date.now());
   });
 
   test('GET /api/subscription/status returns subscription info', async () => {

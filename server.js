@@ -33,6 +33,8 @@ const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'admin123';
 
 // Map the single owner account to an organization for tenant-scoped data.
 const OWNER_ORG_ID = ensureOwnerOrg(db);
+const { ensureTrialSubscription } = require('./services/subscription');
+ensureTrialSubscription(db, OWNER_ORG_ID);
 
 // Owner login
 app.post('/api/owner/login', (req, res) => {

@@ -164,6 +164,8 @@ expect(res.status).toBe(200);
 
 ### Task 6: Plan limits enforcement
 
+**Note:** A newly created owner organization also gets a 14-day `trialing` Starter subscription so the app stays usable before the first payment. Expired or cancelled subscriptions block new properties.
+
 **Files:**
 - Modify: `routes/owner.js` (add limit checks to property creation)
 - Create: `tests/subscription-limits.test.js`
