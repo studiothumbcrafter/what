@@ -15,8 +15,11 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Ensure upload dirs exist
-const photoDir = path.join(__dirname, '..', 'uploads', 'photos');
-const videoDir = path.join(__dirname, '..', 'uploads', 'videos');
+const uploadsRoot = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, 'uploads')
+  : path.join(__dirname, '..', 'uploads');
+const photoDir = path.join(uploadsRoot, 'photos');
+const videoDir = path.join(uploadsRoot, 'videos');
 fs.mkdirSync(photoDir, { recursive: true });
 fs.mkdirSync(videoDir, { recursive: true });
 

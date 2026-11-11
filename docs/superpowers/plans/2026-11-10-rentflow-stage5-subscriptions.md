@@ -5,6 +5,8 @@
 **Goal:** Build the subscription system for SmartRent AI. Owners are placed on plans (Starter ₹499/mo, Professional ₹999/mo, Business ₹1,999/mo), and plan limits are enforced on properties, matches, and visits. Online payment is deferred.
 
 > **Status (11 Nov 2026):** Tasks 1, 2, and 6 are implemented. Tasks 3–5 (Razorpay checkout, verification, webhook) are deferred and their code was removed at the user's request.
+>
+> **Deployment status (11 Nov 2026):** Tenant isolation for matches, customers, allowed contacts, and visits is implemented and covered by `tests/tenant-isolation.test.js`. The Render config now exposes `/health`, mounts a persistent disk at `/var/data`, and points `DATA_DIR` there for both SQLite and uploads. Applying it still needs a Render account/URL plus Supabase and WhatsApp credentials.
 
 **Architecture:** Express routes for subscription status and limits, SQLite database for subscriptions/plans/usage_logs, JWT auth for owner isolation.
 

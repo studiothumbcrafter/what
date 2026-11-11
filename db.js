@@ -3,7 +3,9 @@ const path = require('path');
 const fs = require('fs');
 
 function dbPath() {
-  return process.env.SMARTRENT_TEST_DB || path.join(__dirname, 'data', 'smartrent.sqlite');
+  if (process.env.SMARTRENT_TEST_DB) return process.env.SMARTRENT_TEST_DB;
+  const dir = process.env.DATA_DIR || path.join(__dirname, 'data');
+  return path.join(dir, 'smartrent.sqlite');
 }
 
 function init() {
