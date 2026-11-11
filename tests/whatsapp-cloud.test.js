@@ -26,7 +26,7 @@ jest.mock('https', () => {
   };
 });
 
-const { verifyWebhookSignature, parseWebhookMessage, sendMessage } = require('../services/whatsapp-cloud');
+const { verifyWebhookSignature, parseWebhookMessage, sendMessage, registerPhoneNumber } = require('../services/whatsapp-cloud');
 
 process.env.SUPABASE_ACCESS_TOKEN = 'test-supabase-secret';
 process.env.WHATSAPP_ACCESS_TOKEN = 'test-whatsapp-token';
